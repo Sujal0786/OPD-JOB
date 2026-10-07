@@ -239,7 +239,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       sseRef.current.close();
     }
 
-    const sse = new EventSource(`/api/v1/patient/tokens/${activeToken.bookingReference}/stream`);
+    const sse = new EventSource(api.getStreamUrl(`/api/v1/patient/tokens/${activeToken.bookingReference}/stream`));
     sseRef.current = sse;
 
     sse.addEventListener('TOKEN_UPDATED', (e) => {

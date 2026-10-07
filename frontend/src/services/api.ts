@@ -11,7 +11,9 @@ import {
   TokenStatus,
 } from '../types';
 
-const API_BASE = '/api/v1';
+const RAW_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
+const BACKEND_URL = RAW_BASE.replace(/\/$/, '');
+const API_BASE = BACKEND_URL ? `${BACKEND_URL}/api/v1` : '/api/v1';
 
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'opd_access_token',
@@ -82,6 +84,12 @@ async function parseJsonResponse<T>(res: Response, fallbackError: string): Promi
 }
 
 export const api = {
+  baseUrl: BACKEND_URL,
+  getStreamUrl(path: string): string {
+    const clean = path.startsWith('/') ? path : `/${path}`;
+    return BACKEND_URL ? `${BACKEND_URL}${clean}` : clean;
+  },
+
   // Public Patient API
   async resolveHospitalBySlug(slug: string): Promise<HospitalProfile> {
     const res = await fetch(`${API_BASE}/patient/hospitals/by-slug/${encodeURIComponent(slug)}`, {

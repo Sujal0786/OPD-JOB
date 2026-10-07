@@ -306,10 +306,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     }
 
     const token = api.getAccessToken(currentUser.hospitalId);
-    const sseUrl = `/api/v1/hospitals/${currentUser.hospitalId}/sessions/${selectedSessionId}/stream${
+    const ssePath = `/api/v1/hospitals/${currentUser.hospitalId}/sessions/${selectedSessionId}/stream${
       token ? `?token=${encodeURIComponent(token)}` : ''
     }`;
-    const sse = new EventSource(sseUrl);
+    const sse = new EventSource(api.getStreamUrl(ssePath));
     sseRef.current = sse;
 
     const refreshActiveData = () => {

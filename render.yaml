@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: opd-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: opd-database
+          property: connectionString
+      - key: APP_BASE_URL
+        value: http://localhost:5173
+
+databases:
+  - name: opd-database
+    plan: free
+    databaseName: citycare_db
+    user: citycare_user
