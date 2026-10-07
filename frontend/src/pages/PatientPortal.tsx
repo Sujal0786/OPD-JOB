@@ -23,6 +23,7 @@ import {
   Search,
   Calendar
 } from 'lucide-react';
+import { LanguageToggle } from '../components/LanguageToggle';
 
 interface PatientPortalProps {
   initialSlug?: string;
@@ -507,12 +508,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
           {/* Header Action Controls */}
           <div className="flex items-center space-x-2 sm:space-x-2.5">
-            <button
-              onClick={() => setLang(lang === 'EN' ? 'HI' : 'EN')}
-              className="bg-emerald-800/90 hover:bg-emerald-900 text-xs md:text-sm font-bold px-3 py-1.5 rounded-xl border border-emerald-600 transition flex items-center space-x-1 cursor-pointer shadow-xs"
-            >
-              <span>{lang === 'EN' ? 'हिंदी' : 'English'}</span>
-            </button>
+            <LanguageToggle />
 
             {currentUser && onDashboardClick && (
               <button

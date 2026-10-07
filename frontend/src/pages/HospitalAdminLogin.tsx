@@ -15,6 +15,7 @@ import {
   Activity,
   ArrowRight
 } from 'lucide-react';
+import { LanguageToggle } from '../components/LanguageToggle';
 
 interface HospitalAdminLoginProps {
   onSuccess: (user: LoginResponse) => void;
@@ -66,15 +67,19 @@ export const HospitalAdminLogin: React.FC<HospitalAdminLoginProps> = ({ onSucces
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onBackToHome}
-            className="text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs flex-shrink-0 active:scale-95"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 text-emerald-200" />
-            <span className="hidden xs:inline">Citizen Portal</span>
-            <span className="xs:hidden">Citizen</span>
-          </button>
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <LanguageToggle />
+
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs flex-shrink-0 active:scale-95"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-emerald-200" />
+              <span className="hidden xs:inline">Citizen Portal</span>
+              <span className="xs:hidden">Citizen</span>
+            </button>
+          </div>
         </div>
       </header>
 

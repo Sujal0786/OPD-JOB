@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Lock
 } from 'lucide-react';
+import { LanguageToggle } from '../components/LanguageToggle';
 
 interface HospitalSelectionPageProps {
   onSelectHospital: (slug: string) => void;
@@ -248,6 +249,9 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
 
           {/* Action Controls */}
           <div className="flex items-center space-x-2 flex-shrink-0">
+            {/* Automatic Google Translate Language Conversion Button */}
+            <LanguageToggle />
+
             <span className="hidden md:inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-emerald-100 bg-white/10 border border-white/20">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span>Live Token System</span>
