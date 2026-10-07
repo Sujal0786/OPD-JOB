@@ -45,17 +45,22 @@ export const HospitalAdminLogin: React.FC<HospitalAdminLoginProps> = ({ onSucces
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-emerald-50/20 to-slate-100 flex flex-col justify-between font-sans text-slate-800">
       {/* Top Navbar matching the rest of the application */}
-      <header className="bg-emerald-700 text-white shadow-sm sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 text-white flex items-center justify-center shadow-xs font-black text-lg">
-              <Building2 className="w-5 h-5" />
+      <header className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-white shadow-md sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 border border-white/20 text-white flex items-center justify-center shadow-xs flex-shrink-0">
+              <Building2 className="w-5 h-5 text-emerald-200" />
             </div>
-            <div>
-              <span className="font-black text-lg text-white tracking-tight block leading-tight">
-                Hospital Administration Portal
-              </span>
-              <span className="text-[11px] font-bold text-emerald-100 block leading-none">
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5">
+                <span className="font-black text-sm sm:text-base md:text-lg text-white tracking-tight truncate block leading-tight">
+                  Hospital Admin
+                </span>
+                <span className="bg-emerald-500/30 text-emerald-100 text-[10px] font-bold px-1.5 py-0.5 rounded border border-emerald-400/30 uppercase tracking-wider flex-shrink-0">
+                  STAFF
+                </span>
+              </div>
+              <span className="text-[11px] text-emerald-200/90 font-medium block truncate leading-tight hidden xs:block">
                 OPD Token & Queue Desk Control
               </span>
             </div>
@@ -64,10 +69,11 @@ export const HospitalAdminLogin: React.FC<HospitalAdminLoginProps> = ({ onSucces
           <button
             type="button"
             onClick={onBackToHome}
-            className="text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+            className="text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-xs flex-shrink-0 active:scale-95"
           >
             <ArrowLeft className="w-3.5 h-3.5 text-emerald-200" />
-            <span>Citizen Portal</span>
+            <span className="hidden xs:inline">Citizen Portal</span>
+            <span className="xs:hidden">Citizen</span>
           </button>
         </div>
       </header>

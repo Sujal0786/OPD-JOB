@@ -223,63 +223,110 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-emerald-50/20 to-slate-100 flex flex-col font-sans text-slate-800">
-      {/* Welcome Navbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md">
-              <Building2 className="w-5 h-5" />
+      {/* Welcome Navbar - Responsive Emerald Theme matching PatientPortal */}
+      <header className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-white sticky top-0 z-30 shadow-md">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2">
+          {/* Brand Identity */}
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 border border-white/20 text-white flex items-center justify-center shadow-xs flex-shrink-0">
+              <Building2 className="w-5 h-5 text-emerald-200" />
             </div>
-            <div>
-              <span className="font-black text-lg text-slate-900 tracking-tight block leading-tight">
-                Digital OPD Token Generation Platform
-              </span>
-              <span className="text-[11px] font-bold text-emerald-600 block leading-none">
-                Direct Citizen Token System • No Waiting in Queues
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5">
+                <span className="font-black text-sm sm:text-base md:text-lg text-white tracking-tight truncate block leading-tight">
+                  CityCare OPD
+                </span>
+                <span className="bg-emerald-500/30 text-emerald-100 text-[10px] font-bold px-1.5 py-0.5 rounded border border-emerald-400/30 uppercase tracking-wider flex-shrink-0">
+                  CITIZEN
+                </span>
+              </div>
+              <span className="text-[11px] text-emerald-200/90 font-medium block truncate leading-tight hidden xs:block">
+                Digital Token Generation Platform
               </span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <span className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>OPD Active</span>
+          {/* Action Controls */}
+          <div className="flex items-center space-x-2 flex-shrink-0">
+            <span className="hidden md:inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-emerald-100 bg-white/10 border border-white/20">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Live Token System</span>
             </span>
 
             {onStaffLoginClick && (
               <button
                 type="button"
                 onClick={onStaffLoginClick}
-                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-xs cursor-pointer active:scale-95"
+                className="bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-bold px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition flex items-center space-x-1.5 shadow-sm border border-emerald-600/40 active:scale-95 flex-shrink-0 cursor-pointer"
                 title="Hospital Staff & Doctor Login"
               >
-                <Lock className="w-3.5 h-3.5 text-amber-400" />
-                <span>Hospital Staff Login</span>
+                <Lock className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
+                <span className="hidden xs:inline">Hospital Staff Login</span>
+                <span className="xs:hidden">Staff Login</span>
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Feature Sub-strip under header */}
+        <div className="bg-emerald-950/80 border-t border-emerald-700/50 px-3 sm:px-6 py-1.5 text-[11px] text-emerald-100">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap scrollbar-none">
+            <span className="flex items-center space-x-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span>Direct Citizen Token System • No Reception Lines</span>
+            </span>
+            <span className="text-emerald-300 font-bold bg-white/10 px-2 py-0.5 rounded text-[10px]">
+              100% Free For Patients
+            </span>
           </div>
         </div>
       </header>
 
       {/* Main Welcome & Hospital Access Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center space-y-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-3.5 sm:px-6 py-5 sm:py-10 flex flex-col justify-center space-y-6 sm:space-y-8">
         {/* Hero Title */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center space-x-2 bg-emerald-100 text-emerald-800 text-xs font-extrabold px-3.5 py-1.5 rounded-full shadow-2xs">
+        <div className="text-center space-y-2.5 sm:space-y-3">
+          <div className="inline-flex items-center space-x-2 bg-emerald-100 text-emerald-800 text-xs font-extrabold px-3.5 py-1.5 rounded-full shadow-2xs border border-emerald-200">
             <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Welcome to Digital OPD Token Generation</span>
+            <span>Digital OPD Token Generation</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-snug">
             Open Your Hospital's OPD Token Panel
           </h1>
-          <p className="text-sm sm:text-base text-slate-600 max-w-xl mx-auto leading-relaxed">
-            Enter your hospital's slug or access code, or scan your hospital's OPD QR code to book and track your live token.
+          <p className="text-xs sm:text-sm text-slate-600 max-w-xl mx-auto leading-relaxed">
+            Enter your hospital's slug or 6-digit access code, or scan your hospital's OPD QR code to book and track your live token.
           </p>
+        </div>
+
+        {/* Featured Quick Access Banner */}
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 rounded-2xl p-3 sm:p-4 shadow-xs flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5">
+                <span className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">Apex Care Hospital</span>
+                <span className="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-2xs uppercase flex-shrink-0">Live OPD</span>
+              </div>
+              <p className="text-[11px] text-slate-500 truncate">
+                Slug: <strong className="text-emerald-700 font-mono">apex-care</strong> • Code: <strong className="text-slate-700 font-mono">978187</strong>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectHospital('apex-care')}
+            className="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-3.5 py-2 rounded-xl shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95"
+          >
+            <span>Open</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {/* Global Error Banner */}
         {error && (
-          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs sm:text-sm flex items-start justify-between shadow-xs">
+          <div className="p-3.5 sm:p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs sm:text-sm flex items-start justify-between shadow-xs">
             <div className="flex items-start space-x-2.5">
               <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
               <div>
@@ -297,15 +344,15 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
         )}
 
         {/* The 2 Primary Access Cards (Search Slug/Code OR Scan QR) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
           {/* Option 1: Search Hospital Slug or Access Code */}
-          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-md flex flex-col justify-between space-y-5">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4 sm:space-y-5">
             <div className="space-y-3">
-              <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center shadow-xs">
-                <Search className="w-6 h-6" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center shadow-xs">
+                <Search className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-slate-900">
+                <h2 className="text-base sm:text-lg font-black text-slate-900">
                   Search Hospital Slug or Code
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -320,7 +367,7 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. apex-care or 101202"
+                  placeholder="e.g. apex-care or 978187"
                   value={searchSlugOrCode}
                   onChange={(e) => setSearchSlugOrCode(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-emerald-600 outline-none transition"
@@ -330,7 +377,7 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
               <button
                 type="submit"
                 disabled={resolving || !searchSlugOrCode.trim()}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3.5 rounded-xl shadow-md transition text-sm flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-black py-3.5 rounded-xl shadow-md transition text-sm flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
               >
                 {resolving ? (
                   <>
@@ -353,13 +400,13 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
           </div>
 
           {/* Option 2: Scan Hospital QR Code */}
-          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-md flex flex-col justify-between space-y-5">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4 sm:space-y-5">
             <div className="space-y-3">
-              <div className="w-12 h-12 bg-teal-100 text-teal-700 rounded-2xl flex items-center justify-center shadow-xs">
-                <QrCode className="w-6 h-6" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-teal-100 text-teal-700 rounded-2xl flex items-center justify-center shadow-xs">
+                <QrCode className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-slate-900">
+                <h2 className="text-base sm:text-lg font-black text-slate-900">
                   Scan Hospital QR Code
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -405,8 +452,8 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
         </div>
 
         {/* Feature Highlights Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
-          <div className="bg-white/80 rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center space-x-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
+          <div className="bg-white/80 rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex items-center space-x-3.5">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
               <Clock className="w-5 h-5" />
             </div>
@@ -416,7 +463,7 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
             </div>
           </div>
 
-          <div className="bg-white/80 rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center space-x-3.5">
+          <div className="bg-white/80 rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex items-center space-x-3.5">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center flex-shrink-0">
               <Users className="w-5 h-5" />
             </div>
@@ -426,7 +473,7 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
             </div>
           </div>
 
-          <div className="bg-white/80 rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-center space-x-3.5">
+          <div className="bg-white/80 rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 shadow-2xs flex items-center space-x-3.5">
             <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center flex-shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
