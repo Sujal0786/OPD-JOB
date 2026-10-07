@@ -298,32 +298,6 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
           </p>
         </div>
 
-        {/* Featured Quick Access Banner */}
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 rounded-2xl p-3 sm:p-4 shadow-xs flex items-center justify-between gap-3">
-          <div className="flex items-center space-x-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center space-x-1.5">
-                <span className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">Apex Care Hospital</span>
-                <span className="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-2xs uppercase flex-shrink-0">Live OPD</span>
-              </div>
-              <p className="text-[11px] text-slate-500 truncate">
-                Slug: <strong className="text-emerald-700 font-mono">apex-care</strong> • Code: <strong className="text-slate-700 font-mono">978187</strong>
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onSelectHospital('apex-care')}
-            className="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-3.5 py-2 rounded-xl shadow-xs transition flex items-center space-x-1 cursor-pointer active:scale-95"
-          >
-            <span>Open</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
         {/* Global Error Banner */}
         {error && (
           <div className="p-3.5 sm:p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs sm:text-sm flex items-start justify-between shadow-xs">
@@ -356,7 +330,7 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
                   Search Hospital Slug or Code
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Enter your hospital's dedicated slug (e.g. <span className="font-mono font-bold text-slate-700">apex-care</span>) or 6-digit access code from your appointment slip.
+                  Enter your hospital's dedicated slug or 6-digit access code from your appointment slip or hospital board.
                 </p>
               </div>
             </div>
@@ -367,7 +341,7 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. apex-care or 978187"
+                  placeholder="Enter hospital slug or 6-digit code"
                   value={searchSlugOrCode}
                   onChange={(e) => setSearchSlugOrCode(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-emerald-600 outline-none transition"
