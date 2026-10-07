@@ -101,6 +101,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
   // Dedicated Doctor View state
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
+  const selectedDoctorIdRef = useRef<string>('');
+  useEffect(() => {
+    selectedDoctorIdRef.current = selectedDoctorId;
+  }, [selectedDoctorId]);
   const [doctorBoard, setDoctorBoard] = useState<QueueBoard | null>(null);
   const [loadingDoctorBoard, setLoadingDoctorBoard] = useState(false);
 
@@ -140,7 +144,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
   // Live filtering for Doctor Room View
   const filteredDoctorTokens = useMemo(() => {
-    if (!doctorBoard) return [];
+    if (!doctorBoard || doctorBoard.doctorId !== selectedDoctorId) return [];
     const base = doctorBoard.activeTokens.filter((t) => t.status === 'WAITING' || t.status === 'CALLED');
     if (!doctorSearchQuery.trim()) return base;
     const q = doctorSearchQuery.trim().toLowerCase();
@@ -153,7 +157,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       const matchRef = t.bookingReference ? t.bookingReference.toLowerCase().includes(q) : false;
       return matchToken || matchName || matchPhone || matchLocation || matchRef;
     });
-  }, [doctorBoard, doctorSearchQuery]);
+  }, [doctorBoard, doctorSearchQuery, selectedDoctorId]);
 
   // QR / Link state
   const [copiedLink, setCopiedLink] = useState(false);
@@ -255,6 +259,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       if (data.length > 0) {
         if (!selectedSessionId || !data.some(s => s.id === selectedSessionId)) {
           setSelectedSessionId(data[0].id);
+          if (!selectedDoctorIdRef.current && data[0].doctorId) {
+            setSelectedDoctorId(data[0].doctorId);
+            selectedDoctorIdRef.current = data[0].doctorId;
+          }
         }
       } else {
         setSelectedSessionId('');
@@ -285,8 +293,12 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       setLoadingDoctors(true);
       const docs = await api.getDoctors(currentUser.hospitalId, false);
       setDoctors(docs);
-      if (docs.length > 0 && !selectedDoctorId) {
-        setSelectedDoctorId(docs[0].id);
+      if (docs.length > 0 && !selectedDoctorIdRef.current) {
+        const currentSession = sessions.find(s => s.id === selectedSessionId);
+        const initialDoc = currentSession ? docs.find(d => d.id === currentSession.doctorId) : docs[0];
+        const chosenId = initialDoc ? initialDoc.id : docs[0].id;
+        setSelectedDoctorId(chosenId);
+        selectedDoctorIdRef.current = chosenId;
       }
     } catch (err) {
       console.error('Failed to load doctors list:', err);
@@ -315,8 +327,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     const refreshActiveData = () => {
       loadQueueBoard(selectedSessionId, false);
       loadSessions(selectedDate);
-      if (selectedDoctorId) {
-        loadDoctorRoomBoard(selectedDoctorId);
+      const activeDocId = selectedDoctorIdRef.current;
+      if (activeDocId) {
+        loadDoctorRoomBoard(activeDocId);
       }
     };
 
@@ -427,10 +440,13 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   }, [activeTab, selectedDoctorId]);
 
   const loadDoctorRoomBoard = async (docId: string) => {
+    if (!docId) return;
     try {
       setLoadingDoctorBoard(true);
       const board = await api.getDoctorLiveQueue(currentUser.hospitalId, docId);
-      setDoctorBoard(board);
+      if (selectedDoctorIdRef.current === docId) {
+        setDoctorBoard(board);
+      }
     } catch (err: unknown) {
       console.error(err);
     } finally {
@@ -483,8 +499,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     try {
       await api.callToken(currentUser.hospitalId, sId, tokenNumber);
 
-      if (activeTab === 'DOCTOR_ROOM' && selectedDoctorId) {
-        await loadDoctorRoomBoard(selectedDoctorId);
+      const currentDocId = selectedDoctorIdRef.current;
+      if (activeTab === 'DOCTOR_ROOM' && currentDocId) {
+        await loadDoctorRoomBoard(currentDocId);
       } else {
         await loadQueueBoard(sId, false);
       }
@@ -497,8 +514,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   const handleUpdateStatus = async (tokenId: string, status: TokenStatus, reason?: string) => {
     try {
       await api.updateTokenStatus(currentUser.hospitalId, tokenId, status, reason);
-      if (activeTab === 'DOCTOR_ROOM' && selectedDoctorId) {
-        await loadDoctorRoomBoard(selectedDoctorId);
+      const currentDocId = selectedDoctorIdRef.current;
+      if (activeTab === 'DOCTOR_ROOM' && currentDocId) {
+        await loadDoctorRoomBoard(currentDocId);
       } else if (selectedSessionId) {
         await loadQueueBoard(selectedSessionId, false);
       }
@@ -714,7 +732,16 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
           <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap">
             <nav className="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700 text-xs">
               <button
-                onClick={() => setActiveTab('QUEUE_DESK')}
+                onClick={() => {
+                  setActiveTab('QUEUE_DESK');
+                  const currentDocId = selectedDoctorIdRef.current;
+                  if (currentDocId) {
+                    const matchSession = sessions.find(s => s.doctorId === currentDocId);
+                    if (matchSession) {
+                      setSelectedSessionId(matchSession.id);
+                    }
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center space-x-1.5 ${
                   activeTab === 'QUEUE_DESK'
                     ? 'bg-emerald-600 text-white shadow-sm'
@@ -726,7 +753,17 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               </button>
 
               <button
-                onClick={() => setActiveTab('DOCTOR_ROOM')}
+                onClick={() => {
+                  setActiveTab('DOCTOR_ROOM');
+                  const currentSession = sessions.find(s => s.id === selectedSessionId);
+                  if (currentSession && currentSession.doctorId) {
+                    setSelectedDoctorId(currentSession.doctorId);
+                    selectedDoctorIdRef.current = currentSession.doctorId;
+                    loadDoctorRoomBoard(currentSession.doctorId);
+                  } else if (selectedDoctorIdRef.current) {
+                    loadDoctorRoomBoard(selectedDoctorIdRef.current);
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center space-x-1.5 ${
                   activeTab === 'DOCTOR_ROOM'
                     ? 'bg-emerald-600 text-white shadow-sm'
@@ -951,6 +988,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                         key={s.id}
                         onClick={() => {
                           setSelectedSessionId(s.id);
+                          if (s.doctorId) {
+                            setSelectedDoctorId(s.doctorId);
+                            selectedDoctorIdRef.current = s.doctorId;
+                          }
                           setError(null);
                         }}
                         className={`flex-shrink-0 text-left p-3.5 rounded-2xl border-2 transition cursor-pointer min-w-[240px] flex flex-col justify-between ${
@@ -1347,7 +1388,16 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 <label className="text-xs font-bold text-slate-600">Select Doctor:</label>
                 <select
                   value={selectedDoctorId}
-                  onChange={(e) => setSelectedDoctorId(e.target.value)}
+                  onChange={(e) => {
+                    const newDocId = e.target.value;
+                    setSelectedDoctorId(newDocId);
+                    selectedDoctorIdRef.current = newDocId;
+                    loadDoctorRoomBoard(newDocId);
+                    const matchingSession = sessions.find(s => s.doctorId === newDocId);
+                    if (matchingSession) {
+                      setSelectedSessionId(matchingSession.id);
+                    }
+                  }}
                   className="px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   {doctors.map((d) => (
@@ -1377,7 +1427,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               </div>
             </div>
 
-            {doctorBoard && (
+            {doctorBoard && doctorBoard.doctorId === selectedDoctorId ? (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Large Consultation Control Station */}
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center space-y-5">
@@ -1557,6 +1607,12 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     )}
                   </div>
                 </div>
+              </div>
+            ) : (
+              <div className="p-16 text-center bg-white rounded-3xl border border-slate-200 space-y-3">
+                <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto" />
+                <p className="font-bold text-slate-700 text-sm">Loading Consultation Room...</p>
+                <p className="text-xs text-slate-400">Fetching live doctor queue and waiting patients for selected doctor</p>
               </div>
             )}
           </div>

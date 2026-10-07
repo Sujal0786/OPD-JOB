@@ -439,11 +439,14 @@ public class QueueService {
 
     private OpdSession resolveOrCreateTodayDoctorSession(UUID hospitalId, Doctor doctor) {
         LocalDate today = LocalDate.now();
-        List<OpdSession> sessions = sessionRepository.findAllByHospitalIdAndSessionDate(hospitalId, today);
-        for (OpdSession s : sessions) {
-            if (s.getDoctor().getId().equals(doctor.getId())) {
-                return s;
+        List<OpdSession> sessions = sessionRepository.findAllByHospitalIdAndDoctorIdAndSessionDate(hospitalId, doctor.getId(), today);
+        if (!sessions.isEmpty()) {
+            for (OpdSession s : sessions) {
+                if (s.getStatus() == OpdSessionStatus.OPEN) {
+                    return s;
+                }
             }
+            return sessions.get(0);
         }
 
         Hospital hospital = hospitalRepository.findById(hospitalId)
