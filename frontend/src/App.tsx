@@ -175,6 +175,7 @@ export const App: React.FC = () => {
         onSelectHospital={(slug) => {
           navigate(`/patient?slug=${encodeURIComponent(slug)}`);
         }}
+        onStaffLoginClick={() => navigate('/hospital-admin')}
       />
     );
   }

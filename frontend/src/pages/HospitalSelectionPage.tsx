@@ -14,15 +14,18 @@ import {
   Clock, 
   Users, 
   X,
-  RefreshCw
+  RefreshCw,
+  Lock
 } from 'lucide-react';
 
 interface HospitalSelectionPageProps {
   onSelectHospital: (slug: string) => void;
+  onStaffLoginClick?: () => void;
 }
 
 export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
   onSelectHospital,
+  onStaffLoginClick,
 }) => {
   const [searchSlugOrCode, setSearchSlugOrCode] = useState<string>('');
   const [resolving, setResolving] = useState<boolean>(false);
@@ -237,11 +240,23 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200">
+          <div className="flex items-center space-x-3">
+            <span className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>OPD Active</span>
             </span>
+
+            {onStaffLoginClick && (
+              <button
+                type="button"
+                onClick={onStaffLoginClick}
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 shadow-xs cursor-pointer active:scale-95"
+                title="Hospital Staff & Doctor Login"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Hospital Staff Login</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
