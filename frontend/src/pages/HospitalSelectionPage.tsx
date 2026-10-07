@@ -15,7 +15,8 @@ import {
   Users, 
   X,
   RefreshCw,
-  Lock
+  Lock,
+  Home
 } from 'lucide-react';
 import { LanguageToggle } from '../components/LanguageToggle';
 
@@ -224,70 +225,44 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-emerald-50/20 to-slate-100 flex flex-col font-sans text-slate-800">
-      {/* Welcome Navbar - Responsive Emerald Theme matching PatientPortal */}
-      <header className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2">
-          {/* Brand Identity */}
-          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 border border-white/20 text-white flex items-center justify-center shadow-xs flex-shrink-0">
-              <Building2 className="w-5 h-5 text-emerald-200" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center space-x-1.5">
-                <span className="font-black text-sm sm:text-base md:text-lg text-white tracking-tight truncate block leading-tight">
-                  CityCare OPD
-                </span>
-                <span className="bg-emerald-500/30 text-emerald-100 text-[10px] font-bold px-1.5 py-0.5 rounded border border-emerald-400/30 uppercase tracking-wider flex-shrink-0">
-                  CITIZEN
-                </span>
-              </div>
-              <span className="text-[11px] text-emerald-200/90 font-medium block truncate leading-tight hidden xs:block">
-                Digital Token Generation Platform
+      {/* Floating Top Pill Navbar matching media_1791394408054.png */}
+      <header className="sticky top-3 z-30 px-3 sm:px-6 max-w-xl mx-auto w-full pt-1">
+        <div className="bg-white/90 backdrop-blur-xl border border-slate-200/80 shadow-lg shadow-slate-200/50 rounded-full px-4 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-2">
+          {/* Left: Green Live Pulse Indicator + OPD Token */}
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <span className="relative flex h-3 w-3 flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+            </span>
+            <div className="flex items-center space-x-1.5 truncate">
+              <span className="font-black text-sm sm:text-base text-slate-900 tracking-tight">
+                OPD Token
+              </span>
+              <span className="hidden xs:inline-block bg-emerald-50 text-emerald-700 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full border border-emerald-200">
+                LIVE
               </span>
             </div>
           </div>
 
-          {/* Action Controls */}
+          {/* Right: Language Switcher & Staff Login Pill */}
           <div className="flex items-center space-x-2 flex-shrink-0">
-            {/* Automatic Google Translate Language Conversion Button */}
             <LanguageToggle />
-
-            <span className="hidden md:inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-emerald-100 bg-white/10 border border-white/20">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Live Token System</span>
-            </span>
-
             {onStaffLoginClick && (
               <button
                 type="button"
                 onClick={onStaffLoginClick}
-                className="bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-bold px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition flex items-center space-x-1.5 shadow-sm border border-emerald-600/40 active:scale-95 flex-shrink-0 cursor-pointer"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-full shadow-sm transition active:scale-95 cursor-pointer flex items-center space-x-1"
                 title="Hospital Staff & Doctor Login"
               >
-                <Lock className="w-3.5 h-3.5 text-amber-300 flex-shrink-0" />
-                <span className="hidden xs:inline">Hospital Staff Login</span>
-                <span className="xs:hidden">Staff Login</span>
+                <span>Staff Login</span>
               </button>
             )}
-          </div>
-        </div>
-
-        {/* Feature Sub-strip under header */}
-        <div className="bg-emerald-950/80 border-t border-emerald-700/50 px-3 sm:px-6 py-1.5 text-[11px] text-emerald-100">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap scrollbar-none">
-            <span className="flex items-center space-x-1.5 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span>Direct Citizen Token System • No Reception Lines</span>
-            </span>
-            <span className="text-emerald-300 font-bold bg-white/10 px-2 py-0.5 rounded text-[10px]">
-              100% Free For Patients
-            </span>
           </div>
         </div>
       </header>
 
       {/* Main Welcome & Hospital Access Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-3.5 sm:px-6 py-5 sm:py-10 flex flex-col justify-center space-y-6 sm:space-y-8">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-3.5 sm:px-6 py-5 sm:py-8 pb-32 flex flex-col justify-center space-y-6 sm:space-y-8">
         {/* Hero Title */}
         <div className="text-center space-y-2.5 sm:space-y-3">
           <div className="inline-flex items-center space-x-2 bg-emerald-100 text-emerald-800 text-xs font-extrabold px-3.5 py-1.5 rounded-full shadow-2xs border border-emerald-200">
@@ -343,6 +318,7 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
               <div className="relative">
                 <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                 <input
+                  id="hospital-search-input"
                   type="text"
                   required
                   placeholder="Enter hospital slug or 6-digit code"
@@ -532,7 +508,7 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
       )}
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-500 bg-white mt-auto">
+      <footer className="border-t border-slate-200 py-6 pb-28 text-center text-xs text-slate-500 bg-white mt-auto">
         <div className="max-w-7xl mx-auto px-4">
           <p className="font-semibold text-slate-700">Digital OPD Remote Token Platform</p>
           <p className="text-[11px] text-slate-400 mt-1">
@@ -540,6 +516,72 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
           </p>
         </div>
       </footer>
+
+      {/* Floating Glassmorphic Bottom Dock matching media_1791394345222.png */}
+      <nav aria-label="Quick Navigation" className="fixed bottom-4 inset-x-0 z-40 px-4 pointer-events-none">
+        <div className="max-w-md mx-auto bg-white/90 backdrop-blur-2xl border border-white/80 shadow-2xl shadow-emerald-950/20 rounded-full px-4 sm:px-6 py-1.5 sm:py-2 flex items-center justify-around pointer-events-auto relative">
+          {/* Home Button */}
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="flex flex-col items-center justify-center text-slate-600 hover:text-emerald-700 active:scale-95 transition py-1 px-2 cursor-pointer group"
+          >
+            <Home className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="text-[10px] font-bold mt-0.5">Home</span>
+          </button>
+
+          {/* Search Hospital Code */}
+          <button
+            type="button"
+            onClick={() => {
+              const input = document.getElementById('hospital-search-input');
+              if (input) {
+                input.focus();
+                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }}
+            className="flex flex-col items-center justify-center text-slate-600 hover:text-emerald-700 active:scale-95 transition py-1 px-2 cursor-pointer group"
+          >
+            <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="text-[10px] font-bold mt-0.5">Code</span>
+          </button>
+
+          {/* Center Elevated Scan QR Button */}
+          <div className="relative -top-5 flex flex-col items-center">
+            <button
+              type="button"
+              onClick={() => setShowScanner(true)}
+              className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-xl shadow-emerald-600/40 border-4 border-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer group"
+              title="Scan Hospital QR Code"
+            >
+              <QrCode className="w-6 h-6 group-hover:rotate-6 transition-transform" />
+            </button>
+            <span className="text-[10px] font-black text-emerald-800 mt-1">Scan QR</span>
+          </div>
+
+          {/* Upload QR Photo Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex flex-col items-center justify-center text-slate-600 hover:text-emerald-700 active:scale-95 transition py-1 px-2 cursor-pointer group"
+          >
+            <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="text-[10px] font-bold mt-0.5">Upload</span>
+          </button>
+
+          {/* Staff Login Button */}
+          {onStaffLoginClick && (
+            <button
+              type="button"
+              onClick={onStaffLoginClick}
+              className="flex flex-col items-center justify-center text-slate-600 hover:text-emerald-700 active:scale-95 transition py-1 px-2 cursor-pointer group"
+            >
+              <Lock className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-bold mt-0.5">Staff</span>
+            </button>
+          )}
+        </div>
+      </nav>
     </div>
   );
 };
