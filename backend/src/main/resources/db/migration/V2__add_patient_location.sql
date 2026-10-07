@@ -1,0 +1,1 @@
+ALTER TABLE opd_tokens ADD COLUMN IF NOT EXISTS patient_location VARCHAR(255);

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+target/
+backend/target/
+*.class
+
+# Environment and secrets
+.env
+.env.local
+*.log
+
+# IDE and OS
+.DS_Store
+.idea/
+*.iml
+.vscode/
+
+# Build artifacts
+dist/
+frontend/dist/
+build/
