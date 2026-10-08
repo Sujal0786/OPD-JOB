@@ -562,9 +562,9 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           {viewState === 'HOME' && (
             <>
               {/* Top Banners Responsive Row (Laptop: 2-column or stacked) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Hero Banner Card (Spans 2 cols on desktop) */}
-                <div className="md:col-span-2 bg-gradient-to-r from-emerald-50/70 to-teal-50/50 rounded-2xl p-5 border border-emerald-100/90 flex flex-col justify-between shadow-xs">
+              <div>
+                {/* Hero Banner Card */}
+                <div className="bg-gradient-to-r from-emerald-50/70 to-teal-50/50 rounded-2xl p-4 sm:p-5 border border-emerald-100/90 flex flex-col justify-between shadow-xs">
                   <div className="flex items-start justify-between">
                     <div className="pr-3">
                       <h2 className="text-base md:text-xl font-extrabold text-slate-900 leading-snug">
@@ -581,26 +581,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       <Volume2 className="w-4 h-4 text-emerald-600" />
                       <span>{t.listen}</span>
                     </button>
-                  </div>
-                </div>
-
-                {/* Free Tier Promotion Card */}
-                <div className="bg-emerald-50/80 border border-emerald-200/90 rounded-2xl p-5 flex flex-col justify-between shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
-                      <Gift className="w-5 h-5" />
-                    </div>
-                    <span className="bg-emerald-700 text-white font-black text-xs md:text-sm px-3 py-1 rounded-lg shadow-xs">
-                      100% FREE
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <h4 className="text-xs md:text-sm font-black text-emerald-950 uppercase tracking-tight">
-                      {t.freeBanner}
-                    </h4>
-                    <p className="text-xs text-emerald-800 font-medium mt-0.5">
-                      {t.freeSub}
-                    </p>
                   </div>
                 </div>
               </div>

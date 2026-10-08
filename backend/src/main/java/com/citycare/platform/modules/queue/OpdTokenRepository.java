@@ -23,6 +23,8 @@ public interface OpdTokenRepository extends JpaRepository<OpdToken, UUID> {
 
     List<OpdToken> findAllByOpdSessionIdOrderByTokenNumberAsc(UUID opdSessionId);
 
+    Optional<OpdToken> findByOpdSessionIdAndTokenNumber(UUID opdSessionId, int tokenNumber);
+
     int countByOpdSessionIdAndStatus(UUID opdSessionId, TokenStatus status);
 
     @Query("""

@@ -1,5 +1,7 @@
 package com.citycare.platform.modules.queue;
 
+import com.citycare.platform.modules.opdsession.OpdSession;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -33,16 +35,20 @@ public class TokenResponse {
     }
 
     public static TokenResponse fromEntity(OpdToken t, Integer currentServing, int tokensAhead, int avgWaitPerToken) {
+        return fromEntity(t, t.getOpdSession(), currentServing, tokensAhead, avgWaitPerToken);
+    }
+
+    public static TokenResponse fromEntity(OpdToken t, OpdSession session, Integer currentServing, int tokensAhead, int avgWaitPerToken) {
         TokenResponse res = new TokenResponse();
         res.id = t.getId();
-        res.hospitalId = t.getHospital().getId();
-        res.hospitalName = t.getHospital().getName();
-        res.sessionId = t.getOpdSession().getId();
-        res.sessionName = t.getOpdSession().getSessionName();
-        res.doctorId = t.getOpdSession().getDoctor().getId();
-        res.doctorName = t.getOpdSession().getDoctor().getName();
-        res.doctorSpecialty = t.getOpdSession().getDoctor().getSpecialty();
-        res.doctorRoomNumber = t.getOpdSession().getDoctor().getRoomNumber();
+        res.hospitalId = session != null ? session.getHospital().getId() : t.getHospital().getId();
+        res.hospitalName = session != null ? session.getHospital().getName() : t.getHospital().getName();
+        res.sessionId = session != null ? session.getId() : t.getOpdSession().getId();
+        res.sessionName = session != null ? session.getSessionName() : t.getOpdSession().getSessionName();
+        res.doctorId = session != null ? session.getDoctor().getId() : t.getOpdSession().getDoctor().getId();
+        res.doctorName = session != null ? session.getDoctor().getName() : t.getOpdSession().getDoctor().getName();
+        res.doctorSpecialty = session != null ? session.getDoctor().getSpecialty() : t.getOpdSession().getDoctor().getSpecialty();
+        res.doctorRoomNumber = session != null ? session.getDoctor().getRoomNumber() : t.getOpdSession().getDoctor().getRoomNumber();
         res.tokenNumber = t.getTokenNumber();
         res.tokenType = t.getTokenType();
         res.bookingReference = t.getBookingReference();

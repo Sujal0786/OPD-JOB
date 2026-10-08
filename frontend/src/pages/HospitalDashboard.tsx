@@ -198,8 +198,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   // Real-time Arrival Alert State & Chime Synthesizer
   const [latestArrival, setLatestArrival] = useState<ArrivalAlert | null>(null);
   const arrivalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevKnownTokensRef = useRef<Set<number>>(new Set());
-  const initialLoadDoneRef = useRef<boolean>(false);
+  const initializedSessionIdsRef = useRef<Set<string>>(new Set());
+  const knownTokenIdsRef = useRef<Set<string>>(new Set());
+  const alertedTokenIdsRef = useRef<Set<string>>(new Set());
+  const mountTimeRef = useRef<number>(Date.now());
 
   const playArrivalAlertChime = () => {
     try {
@@ -240,6 +242,11 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       setLatestArrival(null);
     }, 7000);
   };
+
+  // Clear any active arrival notification immediately when switching doctor, session, or tab
+  useEffect(() => {
+    setLatestArrival(null);
+  }, [selectedDoctorId, selectedSessionId, activeTab]);
 
   // 1. Initial Load: Fetch Sessions for Selected Date and Doctors
   useEffect(() => {
@@ -337,8 +344,19 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       try {
         if (event.data) {
           const payload = JSON.parse(event.data);
-          if (payload && payload.tokenNumber && !prevKnownTokensRef.current.has(payload.tokenNumber) && payload.status === 'WAITING') {
-            triggerArrivalAlert(payload.tokenNumber, payload.patientName, payload.tokenType, payload.doctorName);
+          const tokenId = payload?.id || (payload?.tokenNumber ? `${selectedSessionId}_${payload.tokenNumber}` : null);
+          if (
+            tokenId &&
+            payload?.tokenNumber &&
+            !alertedTokenIdsRef.current.has(tokenId) &&
+            payload.status === 'WAITING'
+          ) {
+            const isFresh = payload.createdAt ? (new Date(payload.createdAt).getTime() >= mountTimeRef.current - 5000) : true;
+            if (isFresh) {
+              alertedTokenIdsRef.current.add(tokenId);
+              if (payload.id) knownTokenIdsRef.current.add(payload.id);
+              triggerArrivalAlert(payload.tokenNumber, payload.patientName, payload.tokenType, payload.doctorName);
+            }
           }
         }
       } catch (_) {}
@@ -357,7 +375,14 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         bc = new BroadcastChannel(tenantChannelName);
         bc.onmessage = (event) => {
           if (event.data?.type === 'TOKEN_CREATED') {
-            if (event.data.tokenNumber && !prevKnownTokensRef.current.has(event.data.tokenNumber)) {
+            const tokenId = event.data.tokenId || event.data.id || (event.data.tokenNumber ? `${event.data.sessionId}_${event.data.tokenNumber}` : null);
+            if (
+              tokenId &&
+              event.data.tokenNumber &&
+              !alertedTokenIdsRef.current.has(tokenId)
+            ) {
+              alertedTokenIdsRef.current.add(tokenId);
+              if (event.data.id) knownTokenIdsRef.current.add(event.data.id);
               triggerArrivalAlert(event.data.tokenNumber, event.data.patientName, event.data.tokenType, event.data.doctorName);
             }
             refreshActiveData();
@@ -411,19 +436,37 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       setQueueBoard(board);
 
       if (board && board.activeTokens) {
-        const currentNumbers = new Set(board.activeTokens.map(t => t.tokenNumber));
-        if (initialLoadDoneRef.current) {
-          const newWaitingTokens = board.activeTokens.filter(
-            t => !prevKnownTokensRef.current.has(t.tokenNumber) && t.status === 'WAITING'
-          );
+        const isSessionAlreadyInitialized = initializedSessionIdsRef.current.has(sessionId);
+
+        if (!isSessionAlreadyInitialized) {
+          // First time loading this session: record all existing tokens as known with ZERO alerts!
+          initializedSessionIdsRef.current.add(sessionId);
+          board.activeTokens.forEach(t => {
+            if (t.id) knownTokenIdsRef.current.add(t.id);
+            if (t.id) alertedTokenIdsRef.current.add(t.id);
+          });
+        } else {
+          // Session was already loaded previously; only alert for fresh newly-arrived tokens created while dashboard is open!
+          const newWaitingTokens = board.activeTokens.filter(t => {
+            if (!t.id) return false;
+            if (knownTokenIdsRef.current.has(t.id)) return false;
+            if (alertedTokenIdsRef.current.has(t.id)) return false;
+            if (t.status !== 'WAITING') return false;
+            const isFresh = t.createdAt ? (new Date(t.createdAt).getTime() >= mountTimeRef.current - 5000) : false;
+            return isFresh;
+          });
+
           if (newWaitingTokens.length > 0) {
             const latest = newWaitingTokens[newWaitingTokens.length - 1];
+            alertedTokenIdsRef.current.add(latest.id);
             triggerArrivalAlert(latest.tokenNumber, latest.patientName, latest.tokenType, board.doctorName);
           }
-        } else {
-          initialLoadDoneRef.current = true;
+
+          // Register all active tokens as known
+          board.activeTokens.forEach(t => {
+            if (t.id) knownTokenIdsRef.current.add(t.id);
+          });
         }
-        prevKnownTokensRef.current = currentNumbers;
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load queue board');
@@ -992,6 +1035,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                             setSelectedDoctorId(s.doctorId);
                             selectedDoctorIdRef.current = s.doctorId;
                           }
+                          setLatestArrival(null);
                           setError(null);
                         }}
                         className={`flex-shrink-0 text-left p-3.5 rounded-2xl border-2 transition cursor-pointer min-w-[240px] flex flex-col justify-between ${
@@ -1392,6 +1436,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     const newDocId = e.target.value;
                     setSelectedDoctorId(newDocId);
                     selectedDoctorIdRef.current = newDocId;
+                    setLatestArrival(null);
                     loadDoctorRoomBoard(newDocId);
                     const matchingSession = sessions.find(s => s.doctorId === newDocId);
                     if (matchingSession) {

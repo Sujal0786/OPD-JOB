@@ -177,30 +177,33 @@ export const HospitalAdminLogin: React.FC<HospitalAdminLoginProps> = ({ onSucces
             </div>
 
             {/* Quick Demo Helper for System Testing */}
-            <details className="text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 p-3.5">
-              <summary className="font-bold text-slate-700 cursor-pointer select-none flex items-center justify-between">
-                <span>🔑 Credentials Quick Fill (Testing)</span>
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-black border border-emerald-200">TEST</span>
-              </summary>
-              <div className="mt-3 pt-2.5 border-t border-slate-200 space-y-2 text-[11px]">
-                <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200">
-                  <div>
-                    <p className="font-bold text-slate-900">Platform Super Admin</p>
-                    <p className="font-mono text-slate-500">superadmin@citycare.com</p>
+            {/* Credentials Quick Fill (Development Testing Only) */}
+            {import.meta.env.DEV && (
+              <details className="text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 p-3.5">
+                <summary className="font-bold text-slate-700 cursor-pointer select-none flex items-center justify-between">
+                  <span>🔑 Credentials Quick Fill (Testing)</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-black border border-emerald-200">DEV ONLY</span>
+                </summary>
+                <div className="mt-3 pt-2.5 border-t border-slate-200 space-y-2 text-[11px]">
+                  <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200">
+                    <div>
+                      <p className="font-bold text-slate-900">Platform Super Admin</p>
+                      <p className="font-mono text-slate-500">superadmin@citycare.com</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('superadmin@citycare.com');
+                        setPassword('Admin@1234');
+                      }}
+                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-lg border border-emerald-200 transition cursor-pointer"
+                    >
+                      Autofill
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('superadmin@citycare.com');
-                      setPassword('Admin@1234');
-                    }}
-                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-lg border border-emerald-200 transition cursor-pointer"
-                  >
-                    Autofill
-                  </button>
                 </div>
-              </div>
-            </details>
+              </details>
+            )}
           </div>
         </div>
       </main>

@@ -52,7 +52,7 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
     phone: '',
     adminFullName: '',
     adminEmail: '',
-    adminPassword: 'Admin@1234',
+    adminPassword: import.meta.env.DEV ? 'Admin@1234' : '',
   });
   const [newlyRegisteredHospital, setNewlyRegisteredHospital] = useState<LoginResponse | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
@@ -271,7 +271,7 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
                   phone: '',
                   adminFullName: '',
                   adminEmail: '',
-                  adminPassword: 'Admin@1234',
+                  adminPassword: import.meta.env.DEV ? 'Admin@1234' : '',
                 });
                 setShowRegisterModal(true);
               }}
@@ -464,7 +464,11 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
                     </div>
                     <div className="flex items-center justify-between font-mono text-[11px] pt-1">
                       <span className="text-slate-700 font-semibold truncate">{h.adminEmail}</span>
-                      <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-bold">Admin@1234</span>
+                      {import.meta.env.DEV ? (
+                        <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-bold">Admin@1234</span>
+                      ) : (
+                        <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">••••••••</span>
+                      )}
                     </div>
                   </div>
                 </div>

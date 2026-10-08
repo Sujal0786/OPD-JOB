@@ -265,9 +265,7 @@ public class QueueService {
         OpdSessionQueue queue = queueRepository.findAndLockBySessionId(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Queue not found."));
 
-        OpdToken token = tokenRepository.findAllByOpdSessionIdOrderByTokenNumberAsc(sessionId).stream()
-                .filter(t -> t.getTokenNumber() == tokenNumber)
-                .findFirst()
+        OpdToken token = tokenRepository.findByOpdSessionIdAndTokenNumber(sessionId, tokenNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Token #" + tokenNumber + " not found in session."));
 
         if (!token.getStatus().canTransitionTo(TokenStatus.CALLED)) {
@@ -352,9 +350,38 @@ public class QueueService {
         board.setNextTokenSequence(queue.getNextTokenSequence());
         board.setTotalOnlineCount(queue.getTotalOnlineCount());
         board.setTotalWalkinCount(queue.getTotalWalkinCount());
-        board.setWaitingCount((int) tokens.stream().filter(t -> t.getStatus() == TokenStatus.WAITING).count());
-        board.setCompletedCount((int) tokens.stream().filter(t -> t.getStatus() == TokenStatus.COMPLETED).count());
-        board.setActiveTokens(tokens.stream().map(this::buildTokenResponse).toList());
+
+        Integer currentServing = queue.getCurrentServingToken();
+        int avgWait = session.getDoctor().getAvgConsultationMinutes();
+
+        int waitingCount = 0;
+        int completedCount = 0;
+        int precedingWaitingOrReceived = 0;
+        List<TokenResponse> activeTokens = new ArrayList<>(tokens.size());
+
+        for (OpdToken token : tokens) {
+            TokenStatus status = token.getStatus();
+            if (status == TokenStatus.WAITING) {
+                waitingCount++;
+            } else if (status == TokenStatus.COMPLETED) {
+                completedCount++;
+            }
+
+            int tokensAhead = 0;
+            if (status == TokenStatus.WAITING) {
+                tokensAhead = precedingWaitingOrReceived;
+            }
+
+            if (status == TokenStatus.WAITING || status == TokenStatus.RECEIVED_BY_HOSPITAL) {
+                precedingWaitingOrReceived++;
+            }
+
+            activeTokens.add(TokenResponse.fromEntity(token, session, currentServing, tokensAhead, avgWait));
+        }
+
+        board.setWaitingCount(waitingCount);
+        board.setCompletedCount(completedCount);
+        board.setActiveTokens(activeTokens);
 
         return board;
     }

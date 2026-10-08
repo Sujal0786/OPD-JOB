@@ -64,6 +64,7 @@ public class JwtService {
         claims.put("type", "REFRESH");
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .claims(claims)
                 .subject(principal.getUsername())
                 .issuedAt(new Date())
