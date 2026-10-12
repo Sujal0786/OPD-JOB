@@ -323,64 +323,9 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
           </div>
         )}
 
-        {/* The 2 Primary Access Cards (Search Slug/Code OR Scan QR) */}
+        {/* The 2 Primary Access Cards (Scan QR Code FIRST, then Use Hospital Code) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-          {/* Option 1: Search Hospital Slug or Access Code */}
-          <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4 sm:space-y-5">
-            <div className="space-y-3">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center shadow-xs">
-                <Search className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-              <div>
-                <h2 className="text-base sm:text-lg font-black text-slate-900">
-                  Search Hospital Slug or Code
-                </h2>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Enter your hospital's dedicated slug or 6-digit access code from your appointment slip or hospital board.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-3.5">
-              <div className="relative">
-                <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                <input
-                  id="hospital-search-input"
-                  type="text"
-                  required
-                  placeholder="Enter hospital slug or 6-digit code"
-                  value={searchSlugOrCode}
-                  onChange={(e) => setSearchSlugOrCode(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-emerald-600 outline-none transition"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={resolving || !searchSlugOrCode.trim()}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-black py-3.5 rounded-xl shadow-md transition text-sm flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
-              >
-                {resolving ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Resolving Hospital...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Open Hospital OPD Panel</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-100 flex items-center justify-between">
-              <span>Direct isolated clinic portal</span>
-              <span className="font-bold text-emerald-700">Instant Access</span>
-            </div>
-          </div>
-
-          {/* Option 2: Scan Hospital QR Code */}
+          {/* Card 1: Scan Hospital QR Code (Placed First) */}
           <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4 sm:space-y-5">
             <div className="space-y-3">
               <div className="w-11 h-11 sm:w-12 sm:h-12 bg-teal-100 text-teal-700 rounded-2xl flex items-center justify-center shadow-xs">
@@ -428,6 +373,61 @@ export const HospitalSelectionPage: React.FC<HospitalSelectionPageProps> = ({
             <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-100 flex items-center justify-between">
               <span>Automatic QR recognition</span>
               <span className="font-bold text-teal-700">Camera & Photo</span>
+            </div>
+          </div>
+
+          {/* Card 2: Use Hospital Code (Placed Second) */}
+          <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4 sm:space-y-5">
+            <div className="space-y-3">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center shadow-xs">
+                <Search className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-black text-slate-900">
+                  Use Hospital Code
+                </h2>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Enter your hospital's 6-digit access code or slug from your appointment slip or hospital board.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              <div className="relative">
+                <Building2 className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <input
+                  id="hospital-search-input"
+                  type="text"
+                  required
+                  placeholder="Enter 6-digit code or hospital slug"
+                  value={searchSlugOrCode}
+                  onChange={(e) => setSearchSlugOrCode(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-emerald-600 outline-none transition"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={resolving || !searchSlugOrCode.trim()}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-black py-3.5 rounded-xl shadow-md transition text-sm flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
+              >
+                {resolving ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Resolving Hospital...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Open Hospital OPD Panel</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-100 flex items-center justify-between">
+              <span>Direct isolated clinic portal</span>
+              <span className="font-bold text-emerald-700">Instant Access</span>
             </div>
           </div>
         </div>
