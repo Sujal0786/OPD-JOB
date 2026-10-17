@@ -73,6 +73,8 @@ export interface TokenResponse {
   hospitalName: string;
   sessionId: string;
   sessionName: string;
+  sessionDate?: string;
+  expired?: boolean;
   doctorId: string;
   doctorName: string;
   doctorSpecialty: string;

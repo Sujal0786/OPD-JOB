@@ -65,6 +65,32 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const sseRef = useRef<EventSource | null>(null);
 
+  // Verifies whether a token is valid for today's active OPD session
+  const isTokenActiveToday = (token: TokenResponse | null): boolean => {
+    if (!token) return false;
+    if (token.expired) return false;
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayLocal = `${year}-${month}-${day}`;
+
+    if (token.sessionDate) {
+      return token.sessionDate === todayLocal;
+    }
+
+    if (token.createdAt) {
+      const created = new Date(token.createdAt);
+      const cYear = created.getFullYear();
+      const cMonth = String(created.getMonth() + 1).padStart(2, '0');
+      const cDay = String(created.getDate()).padStart(2, '0');
+      return `${cYear}-${cMonth}-${cDay}` === todayLocal;
+    }
+
+    return true;
+  };
+
   const handleRetrySms = async () => {
     if (!activeToken || retryingSms) return;
     try {
@@ -170,11 +196,22 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       const savedBookingRef = localStorage.getItem(tokenKey) || localStorage.getItem('opd_patient_token_ref') || localStorage.getItem('citycare_patient_token_ref');
       if (savedBookingRef) {
         api.getTokenByReference(savedBookingRef)
-          .then(t => setActiveToken(t))
+          .then(t => {
+            if (isTokenActiveToday(t)) {
+              setActiveToken(t);
+            } else {
+              // Stored token is from an expired day - clear cache so today shows clean state
+              localStorage.removeItem(tokenKey);
+              localStorage.removeItem('opd_patient_token_ref');
+              localStorage.removeItem('citycare_patient_token_ref');
+              setActiveToken(null);
+            }
+          })
           .catch(() => {
             localStorage.removeItem(tokenKey);
             localStorage.removeItem('opd_patient_token_ref');
             localStorage.removeItem('citycare_patient_token_ref');
+            setActiveToken(null);
           });
       }
     } catch (err: unknown) {
@@ -369,9 +406,15 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       } else {
         const token = await api.getTokenByReference(clean);
         setActiveToken(token);
-        localStorage.setItem(`opd_patient_token_ref_${hospital.id}`, token.bookingReference);
-        localStorage.setItem('opd_patient_token_ref', token.bookingReference);
-        localStorage.removeItem('citycare_patient_token_ref');
+        if (isTokenActiveToday(token)) {
+          localStorage.setItem(`opd_patient_token_ref_${hospital.id}`, token.bookingReference);
+          localStorage.setItem('opd_patient_token_ref', token.bookingReference);
+          localStorage.removeItem('citycare_patient_token_ref');
+        } else {
+          localStorage.removeItem(`opd_patient_token_ref_${hospital.id}`);
+          localStorage.removeItem('opd_patient_token_ref');
+          localStorage.removeItem('citycare_patient_token_ref');
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : (lang === 'HI' ? 'टोकन नहीं मिला' : 'Token reference not found'));
@@ -624,8 +667,14 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         <Ticket className="w-6 h-6" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-base text-slate-900">{t.myToken}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">{t.checkLiveToken}</p>
+                        <h4 className="font-bold text-base text-slate-900">
+                          {t.myToken} {activeToken && isTokenActiveToday(activeToken) ? `(#${activeToken.tokenNumber})` : ''}
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {activeToken && isTokenActiveToday(activeToken)
+                            ? (lang === 'HI' ? 'आज का लाइव टोकन देखें' : 'View your active live token')
+                            : t.checkLiveToken}
+                        </p>
                       </div>
                     </div>
                     <ArrowRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition-transform" />
@@ -1027,7 +1076,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     </button>
                   </div>
 
-                  {activeToken.status === 'CALLED' && (
+                  {activeToken.status === 'CALLED' && isTokenActiveToday(activeToken) && (
                     <div className="p-4 sm:p-5 bg-emerald-500 text-white rounded-3xl shadow-xl flex items-center space-x-3 sm:space-x-4 animate-bounce">
                       <Volume2 className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0" />
                       <div>
@@ -1040,36 +1089,66 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-md border border-slate-200 text-center relative overflow-hidden">
                     {/* Top Row: Clean Flex Badges (NEVER absolute, prevents overlap with token title) */}
                     <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
-                      <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 shadow-2xs flex-shrink-0">
-                        <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{lang === 'HI' ? 'आज की ओपीडी' : "Today's OPD"}</span>
+                      <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[11px] font-bold shadow-2xs flex-shrink-0 ${
+                        isTokenActiveToday(activeToken)
+                          ? 'text-emerald-800 bg-emerald-50 border border-emerald-200'
+                          : 'text-amber-900 bg-amber-50 border border-amber-300'
+                      }`}>
+                        <Calendar className={`w-3.5 h-3.5 ${isTokenActiveToday(activeToken) ? 'text-emerald-600' : 'text-amber-600'}`} />
+                        <span>
+                          {isTokenActiveToday(activeToken)
+                            ? (lang === 'HI' ? 'आज की ओपीडी' : "Today's OPD")
+                            : (lang === 'HI' ? `ओपीडी सत्र: ${activeToken.sessionDate || 'पिछली तारीख'}` : `Session Date: ${activeToken.sessionDate || 'Past Date'}`)}
+                        </span>
                       </span>
 
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex-shrink-0 ${
-                        activeToken.status === 'CALLED'
-                          ? 'bg-emerald-100 text-emerald-800 animate-pulse border border-emerald-300'
-                          : activeToken.status === 'IN_CONSULTATION'
-                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                          : activeToken.status === 'COMPLETED'
-                          ? 'bg-slate-100 text-slate-700 border border-slate-300'
-                          : 'bg-amber-100 text-amber-800 border border-amber-300'
-                      }`}>
-                        {activeToken.status}
-                      </span>
+                      {!isTokenActiveToday(activeToken) ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex-shrink-0 bg-rose-100 text-rose-800 border border-rose-300">
+                          {lang === 'HI' ? 'समाप्त (EXPIRED)' : 'EXPIRED'}
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex-shrink-0 ${
+                          activeToken.status === 'CALLED'
+                            ? 'bg-emerald-100 text-emerald-800 animate-pulse border border-emerald-300'
+                            : activeToken.status === 'IN_CONSULTATION'
+                            ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                            : activeToken.status === 'COMPLETED'
+                            ? 'bg-slate-100 text-slate-700 border border-slate-300'
+                            : 'bg-amber-100 text-amber-800 border border-amber-300'
+                        }`}>
+                          {activeToken.status}
+                        </span>
+                      )}
                     </div>
 
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{t.yourToken}</p>
-                    <div className="text-6xl sm:text-7xl font-black text-emerald-600 my-1 tracking-tight">
+                    <div className={`text-6xl sm:text-7xl font-black my-1 tracking-tight ${
+                      isTokenActiveToday(activeToken) ? 'text-emerald-600' : 'text-slate-400'
+                    }`}>
                       #{activeToken.tokenNumber}
                     </div>
-                    <p className="text-[11px] font-semibold text-emerald-700 mb-2 flex items-center justify-center space-x-1">
-                      <Calendar className="w-3 h-3 flex-shrink-0" />
-                      <span>
-                        {lang === 'HI'
-                          ? 'आज का ओपीडी टोकन • केवल आज मान्य'
-                          : "Today's Token • Valid for today's OPD only"}
-                      </span>
-                    </p>
+
+                    {isTokenActiveToday(activeToken) ? (
+                      <p className="text-[11px] font-semibold text-emerald-700 mb-2 flex items-center justify-center space-x-1">
+                        <Calendar className="w-3 h-3 flex-shrink-0" />
+                        <span>
+                          {lang === 'HI'
+                            ? 'आज का ओपीडी टोकन • केवल आज मान्य'
+                            : "Today's Token • Valid for today's OPD only"}
+                        </span>
+                      </p>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 my-2 text-center text-xs text-amber-950">
+                        <p className="font-black text-amber-900">
+                          ⚠️ {lang === 'HI' ? 'यह टोकन समाप्त (Expire) हो चुका है' : 'This Token Has Expired'}
+                        </p>
+                        <p className="text-[11px] text-amber-800 mt-0.5">
+                          {lang === 'HI'
+                            ? `यह टोकन ${activeToken.sessionDate || 'पिछली तारीख'} के ओपीडी सत्र का था। आज डॉक्टर को दिखाने के लिए नया टोकन बुक करें।`
+                            : `This token was valid for the session on ${activeToken.sessionDate || 'a previous date'}. OPD tokens expire automatically at the end of the day.`}
+                        </p>
+                      </div>
+                    )}
 
                     <div className="mt-5 pt-4 border-t border-slate-100 text-left space-y-2.5 text-sm">
                       <div className="flex justify-between items-center">
@@ -1102,91 +1181,111 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       )}
                     </div>
 
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-100">
-                      <div className="bg-slate-50 p-3.5 rounded-2xl text-center border border-slate-100">
-                        <p className="text-xs text-slate-500 font-medium mb-0.5">{t.patientsAhead}</p>
-                        <p className="text-2xl sm:text-3xl font-black text-slate-800">{activeToken.tokensAhead}</p>
+                    {!isTokenActiveToday(activeToken) && (
+                      <div className="mt-5 pt-4 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveToken(null);
+                            setViewState('DOCTOR_LIST');
+                          }}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-xl transition text-base flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
+                        >
+                          <Ticket className="w-5 h-5" />
+                          <span>{lang === 'HI' ? 'आज का नया टोकन बुक करें ➔' : "Book Today's Fresh Token ➔"}</span>
+                        </button>
                       </div>
-                      <div className="bg-slate-50 p-3.5 rounded-2xl text-center border border-slate-100">
-                        <p className="text-xs text-slate-500 font-medium mb-0.5">{t.estWait}</p>
-                        <p className="text-2xl sm:text-3xl font-black text-slate-800">~{activeToken.estimatedWaitMinutes}m</p>
-                      </div>
-                    </div>
+                    )}
 
-                    {/* Notification Delivery Status Badge */}
-                    {activeToken.smsSent ? (
-                      <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 mt-4 text-left flex items-center justify-between shadow-2xs">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                            <CheckCircle2 className="w-4 h-4" />
+                    {isTokenActiveToday(activeToken) && (
+                      <>
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-100">
+                          <div className="bg-slate-50 p-3.5 rounded-2xl text-center border border-slate-100">
+                            <p className="text-xs text-slate-500 font-medium mb-0.5">{t.patientsAhead}</p>
+                            <p className="text-2xl sm:text-3xl font-black text-slate-800">{activeToken.tokensAhead}</p>
                           </div>
-                          <div>
-                            <p className="text-xs sm:text-sm font-bold text-emerald-950">
-                              {lang === 'HI'
-                                ? 'रजिस्टर मोबाइल पर संदर्भ संदेश भेज दिया गया है।'
-                                : 'SMS confirmation sent to mobile number.'}
-                            </p>
-                            {activeToken.patientPhone && (
-                              <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">
-                                📱 +91 {activeToken.patientPhone}
+                          <div className="bg-slate-50 p-3.5 rounded-2xl text-center border border-slate-100">
+                            <p className="text-xs text-slate-500 font-medium mb-0.5">{t.estWait}</p>
+                            <p className="text-2xl sm:text-3xl font-black text-slate-800">~{activeToken.estimatedWaitMinutes}m</p>
+                          </div>
+                        </div>
+
+                        {/* Notification Delivery Status Badge */}
+                        {activeToken.smsSent ? (
+                          <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 mt-4 text-left flex items-center justify-between shadow-2xs">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                                <CheckCircle2 className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="text-xs sm:text-sm font-bold text-emerald-950">
+                                  {lang === 'HI'
+                                    ? 'रजिस्टर मोबाइल पर संदर्भ संदेश भेज दिया गया है।'
+                                    : 'SMS confirmation sent to mobile number.'}
+                                </p>
+                                {activeToken.patientPhone && (
+                                  <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">
+                                    📱 +91 {activeToken.patientPhone}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[10px] uppercase font-black bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-md flex-shrink-0 ml-2">
+                              {lang === 'HI' ? 'भेजा गया' : 'SENT'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 mt-4 text-left shadow-2xs space-y-2">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start space-x-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-black shadow-xs">
+                                  ✓
+                                </div>
+                                <div>
+                                  <p className="text-xs sm:text-sm font-bold text-slate-800">
+                                    {lang === 'HI' ? 'डिजिटल टोकन सुरक्षित व सक्रिय है' : 'Digital Token Confirmed & Active'}
+                                  </p>
+                                  <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                                    {lang === 'HI'
+                                      ? 'यह स्क्रीन कमरे के बाहर दिखाएं। कतार की स्थिति इस पेज पर लाइव अपडेट होती है।'
+                                      : 'Present this token # at the OPD room. Queue position updates live on this screen.'}
+                                  </p>
+                                  {activeToken.patientPhone && (
+                                    <p className="text-[11px] text-emerald-700 font-semibold mt-1">
+                                      📱 Reg: +91 {activeToken.patientPhone}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-[10px] uppercase font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md flex-shrink-0 ml-2 border border-emerald-200">
+                                LIVE
+                              </span>
+                            </div>
+
+                            {/* Subtle secondary SMS retry option if user desires */}
+                            <div className="pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500">
+                                {lang === 'HI' ? 'एसएमएस नहीं मिला?' : 'Need SMS on phone?'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={handleRetrySms}
+                                disabled={retryingSms}
+                                className="inline-flex items-center space-x-1 text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer"
+                              >
+                                <RefreshCw className={`w-3 h-3 ${retryingSms ? 'animate-spin' : ''}`} />
+                                <span>{retryingSms ? 'Sending...' : 'Retry SMS'}</span>
+                              </button>
+                            </div>
+                            {smsRetryStatus && (
+                              <p className="text-[11px] text-slate-600 bg-white/80 p-1.5 rounded-lg border border-emerald-100 font-medium">
+                                {smsRetryStatus}
                               </p>
                             )}
                           </div>
-                        </div>
-                        <span className="text-[10px] uppercase font-black bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-md flex-shrink-0 ml-2">
-                          {lang === 'HI' ? 'भेजा गया' : 'SENT'}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 mt-4 text-left shadow-2xs space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start space-x-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5 text-xs font-black shadow-xs">
-                              ✓
-                            </div>
-                            <div>
-                              <p className="text-xs sm:text-sm font-bold text-slate-800">
-                                {lang === 'HI' ? 'डिजिटल टोकन सुरक्षित व सक्रिय है' : 'Digital Token Confirmed & Active'}
-                              </p>
-                              <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
-                                {lang === 'HI'
-                                  ? 'यह स्क्रीन कमरे के बाहर दिखाएं। कतार की स्थिति इस पेज पर लाइव अपडेट होती है।'
-                                  : 'Present this token # at the OPD room. Queue position updates live on this screen.'}
-                              </p>
-                              {activeToken.patientPhone && (
-                                <p className="text-[11px] text-emerald-700 font-semibold mt-1">
-                                  📱 Reg: +91 {activeToken.patientPhone}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <span className="text-[10px] uppercase font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md flex-shrink-0 ml-2 border border-emerald-200">
-                            LIVE
-                          </span>
-                        </div>
-
-                        {/* Subtle secondary SMS retry option if user desires */}
-                        <div className="pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500">
-                            {lang === 'HI' ? 'एसएमएस नहीं मिला?' : 'Need SMS on phone?'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleRetrySms}
-                            disabled={retryingSms}
-                            className="inline-flex items-center space-x-1 text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${retryingSms ? 'animate-spin' : ''}`} />
-                            <span>{retryingSms ? 'Sending...' : 'Retry SMS'}</span>
-                          </button>
-                        </div>
-                        {smsRetryStatus && (
-                          <p className="text-[11px] text-slate-600 bg-white/80 p-1.5 rounded-lg border border-emerald-100 font-medium">
-                            {smsRetryStatus}
-                          </p>
                         )}
-                      </div>
+                      </>
                     )}
 
                     <p className="text-xs text-slate-400 mt-3.5 leading-relaxed">
@@ -1254,6 +1353,21 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         ? 'आज के लाइव नंबर के लिए 10 अंकों का मोबाइल नंबर डालें'
                         : 'Enter your 10-digit mobile phone number or booking reference to check live turn'}
                     </p>
+                  </div>
+
+                  {/* Clean CTA to Book Fresh Token if user doesn't have one */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center space-y-2">
+                    <p className="text-xs text-emerald-950 font-bold">
+                      {lang === 'HI' ? 'आज के लिए अभी तक कोई टोकन बुक नहीं किया?' : "Haven't booked a token for today yet?"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setViewState('DOCTOR_LIST')}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer shadow-xs transition active:scale-95 flex items-center justify-center space-x-1.5"
+                    >
+                      <Ticket className="w-4 h-4" />
+                      <span>{lang === 'HI' ? 'डॉक्टर चुनें और आज का टोकन बुक करें ➔' : "View Doctors & Book Today's Token ➔"}</span>
+                    </button>
                   </div>
 
                   {/* Informational Callout: Tokens only searchable on Today's basis */}

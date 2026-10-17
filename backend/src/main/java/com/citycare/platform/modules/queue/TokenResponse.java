@@ -3,6 +3,7 @@ package com.citycare.platform.modules.queue;
 import com.citycare.platform.modules.opdsession.OpdSession;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 public class TokenResponse {
@@ -12,6 +13,8 @@ public class TokenResponse {
     private String hospitalName;
     private UUID sessionId;
     private String sessionName;
+    private LocalDate sessionDate;
+    private boolean expired;
     private UUID doctorId;
     private String doctorName;
     private String doctorSpecialty;
@@ -45,6 +48,9 @@ public class TokenResponse {
         res.hospitalName = session != null ? session.getHospital().getName() : t.getHospital().getName();
         res.sessionId = session != null ? session.getId() : t.getOpdSession().getId();
         res.sessionName = session != null ? session.getSessionName() : t.getOpdSession().getSessionName();
+        LocalDate sDate = session != null ? session.getSessionDate() : (t.getOpdSession() != null ? t.getOpdSession().getSessionDate() : null);
+        res.sessionDate = sDate;
+        res.expired = sDate != null && sDate.isBefore(LocalDate.now());
         res.doctorId = session != null ? session.getDoctor().getId() : t.getOpdSession().getDoctor().getId();
         res.doctorName = session != null ? session.getDoctor().getName() : t.getOpdSession().getDoctor().getName();
         res.doctorSpecialty = session != null ? session.getDoctor().getSpecialty() : t.getOpdSession().getDoctor().getSpecialty();
@@ -106,6 +112,22 @@ public class TokenResponse {
 
     public void setSessionName(String sessionName) {
         this.sessionName = sessionName;
+    }
+
+    public LocalDate getSessionDate() {
+        return sessionDate;
+    }
+
+    public void setSessionDate(LocalDate sessionDate) {
+        this.sessionDate = sessionDate;
+    }
+
+    public boolean isExpired() {
+        return expired;
+    }
+
+    public void setExpired(boolean expired) {
+        this.expired = expired;
     }
 
     public UUID getDoctorId() {
