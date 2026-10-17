@@ -22,7 +22,6 @@ import {
   BellRing,
   Bell,
   Phone,
-  Sparkles,
   Ticket,
   Printer,
   MapPin,
@@ -1809,19 +1808,6 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       <span>{copiedLink ? 'Copied!' : 'Copy'}</span>
                     </button>
                   </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
-                  <h4 className="font-extrabold text-slate-900 flex items-center space-x-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    <span>How it works in production:</span>
-                  </h4>
-                  <ul className="list-disc pl-5 text-slate-600 space-y-1">
-                    <li>Hospital places this printed QR code at the entrance or reception desk.</li>
-                    <li>Patients scan it with their Android or iPhone camera — opens directly to <strong>{currentUser.hospitalName}</strong>.</li>
-                    <li>No app download required; runs securely in browser with live updates.</li>
-                    <li>Multi-tenant security isolates all queue and patient records server-side.</li>
-                  </ul>
                 </div>
 
                 <a
