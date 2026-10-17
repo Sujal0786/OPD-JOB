@@ -18,6 +18,7 @@ public class TokenResponse {
     private UUID doctorId;
     private String doctorName;
     private String doctorSpecialty;
+    private String doctorQualification;
     private String doctorRoomNumber;
     private int tokenNumber;
     private TokenType tokenType;
@@ -54,6 +55,9 @@ public class TokenResponse {
         res.doctorId = session != null ? session.getDoctor().getId() : t.getOpdSession().getDoctor().getId();
         res.doctorName = session != null ? session.getDoctor().getName() : t.getOpdSession().getDoctor().getName();
         res.doctorSpecialty = session != null ? session.getDoctor().getSpecialty() : t.getOpdSession().getDoctor().getSpecialty();
+        res.doctorQualification = session != null && session.getDoctor() != null
+                ? session.getDoctor().getQualification()
+                : (t.getOpdSession() != null && t.getOpdSession().getDoctor() != null ? t.getOpdSession().getDoctor().getQualification() : null);
         res.doctorRoomNumber = session != null ? session.getDoctor().getRoomNumber() : t.getOpdSession().getDoctor().getRoomNumber();
         res.tokenNumber = t.getTokenNumber();
         res.tokenType = t.getTokenType();
@@ -152,6 +156,14 @@ public class TokenResponse {
 
     public void setDoctorSpecialty(String doctorSpecialty) {
         this.doctorSpecialty = doctorSpecialty;
+    }
+
+    public String getDoctorQualification() {
+        return doctorQualification;
+    }
+
+    public void setDoctorQualification(String doctorQualification) {
+        this.doctorQualification = doctorQualification;
     }
 
     public String getDoctorRoomNumber() {

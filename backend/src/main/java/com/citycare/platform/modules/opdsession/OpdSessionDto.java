@@ -11,6 +11,7 @@ public class OpdSessionDto {
     private UUID doctorId;
     private String doctorName;
     private String doctorSpecialty;
+    private String doctorQualification;
     private String doctorRoomNumber;
     private String doctorPhotoUrl;
     private LocalDate sessionDate;
@@ -35,6 +36,7 @@ public class OpdSessionDto {
         dto.doctorId = s.getDoctor().getId();
         dto.doctorName = s.getDoctor().getName();
         dto.doctorSpecialty = s.getDoctor().getSpecialty();
+        dto.doctorQualification = s.getDoctor().getQualification();
         dto.doctorRoomNumber = s.getDoctor().getRoomNumber();
         dto.doctorPhotoUrl = s.getDoctor().getPhotoUrl();
         dto.sessionDate = s.getSessionDate();
@@ -89,6 +91,14 @@ public class OpdSessionDto {
 
     public void setDoctorSpecialty(String doctorSpecialty) {
         this.doctorSpecialty = doctorSpecialty;
+    }
+
+    public String getDoctorQualification() {
+        return doctorQualification;
+    }
+
+    public void setDoctorQualification(String doctorQualification) {
+        this.doctorQualification = doctorQualification;
     }
 
     public String getDoctorRoomNumber() {

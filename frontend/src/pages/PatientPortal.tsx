@@ -764,6 +764,9 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         <div className="flex-1 min-w-0">
                           <h4 className="font-bold text-sm md:text-base text-slate-900 truncate">{s.doctorName}</h4>
                           <p className="text-xs text-emerald-700 font-semibold">{s.doctorSpecialty}</p>
+                          {s.doctorQualification && (
+                            <p className="text-[11px] text-indigo-700 font-semibold truncate mt-0.5">🎓 {s.doctorQualification}</p>
+                          )}
                           <p className="text-[11px] text-slate-400 mt-0.5">{s.doctorRoomNumber}</p>
                         </div>
                       </div>
@@ -833,7 +836,13 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         <div className="flex-1 min-w-0">
                           <h3 className="font-extrabold text-base text-slate-900">{s.doctorName}</h3>
                           <p className="text-xs text-emerald-700 font-bold mt-0.5">❤️ {s.doctorSpecialty}</p>
-                          <p className="text-[11px] text-slate-500">{s.doctorRoomNumber}</p>
+                          {s.doctorQualification && (
+                            <p className="text-[11px] text-indigo-700 font-semibold mt-0.5 flex items-center gap-1">
+                              <span>🎓</span>
+                              <span>{s.doctorQualification}</span>
+                            </p>
+                          )}
+                          <p className="text-[11px] text-slate-500 mt-0.5">{s.doctorRoomNumber}</p>
 
                           <span className="inline-flex items-center space-x-1 mt-1.5 text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
                             <span>🟢</span>
@@ -909,6 +918,11 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 <div>
                   <h3 className="font-black text-xl text-slate-900">{selectedSession.doctorName}</h3>
                   <p className="text-sm text-emerald-700 font-bold">{selectedSession.doctorSpecialty}</p>
+                  {selectedSession.doctorQualification && (
+                    <p className="text-xs text-indigo-700 font-semibold mt-0.5">
+                      🎓 {selectedSession.doctorQualification}
+                    </p>
+                  )}
                   <p className="text-xs text-slate-500 mt-1">
                     🏥 {hospital?.name || 'City Care Hospital'} • {selectedSession.doctorRoomNumber}
                   </p>
@@ -1153,7 +1167,14 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     <div className="mt-5 pt-4 border-t border-slate-100 text-left space-y-2.5 text-sm">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">Doctor:</span>
-                        <span className="font-bold text-slate-800 text-right">{activeToken.doctorName}</span>
+                        <div className="text-right">
+                          <span className="font-bold text-slate-800">{activeToken.doctorName}</span>
+                          {activeToken.doctorQualification && (
+                            <span className="block text-[11px] text-indigo-700 font-semibold">
+                              🎓 {activeToken.doctorQualification}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">Room:</span>
@@ -1370,23 +1391,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     </button>
                   </div>
 
-                  {/* Informational Callout: Tokens only searchable on Today's basis */}
-                  <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-3.5 text-left flex items-start space-x-2.5 text-xs text-amber-900 shadow-2xs">
-                    <span className="text-base flex-shrink-0 mt-0.5">ℹ️</span>
-                    <div>
-                      <p className="font-extrabold text-amber-950">
-                        {lang === 'HI'
-                          ? 'टोकन केवल आज की तारीख के लिए उपलब्ध व सर्च किए जा सकते हैं'
-                          : "Tokens are only searchable for Today's OPD"}
-                      </p>
-                      <p className="text-[11px] text-amber-800 font-medium mt-0.5 leading-relaxed">
-                        {lang === 'HI'
-                          ? 'ओपीडी टोकन केवल उसी दिन की डॉक्टर कंसल्टेशन के लिए मान्य होते हैं। पुराने या पिछले दिनों के टोकन स्वतः समाप्त हो जाते हैं।'
-                          : "OPD tokens are valid exclusively for today's doctor session. Previous days' tokens expire automatically at midnight."}
-                      </p>
-                    </div>
-                  </div>
-
                   <form onSubmit={handleLookupToken} className="space-y-3">
                     <input
                       type="text"
@@ -1462,6 +1466,9 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       <div>
                         <h4 className="font-bold text-base text-slate-900">{s.doctorName}</h4>
                         <p className="text-xs text-emerald-700 font-semibold">{s.doctorSpecialty}</p>
+                        {s.doctorQualification && (
+                          <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">🎓 {s.doctorQualification}</p>
+                        )}
                       </div>
                       <span className="text-xs font-bold bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-200">
                         {s.doctorRoomNumber}

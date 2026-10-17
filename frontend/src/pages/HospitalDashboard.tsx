@@ -913,7 +913,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 cursor-pointer transition shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Add Doctor</span>
+                    <span> Add Doctor</span>
                   </button>
 
                   <button

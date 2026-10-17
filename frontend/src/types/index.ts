@@ -52,6 +52,7 @@ export interface OpdSession {
   doctorId: string;
   doctorName: string;
   doctorSpecialty: string;
+  doctorQualification?: string;
   doctorRoomNumber: string;
   doctorPhotoUrl?: string;
   sessionDate: string;
@@ -78,6 +79,7 @@ export interface TokenResponse {
   doctorId: string;
   doctorName: string;
   doctorSpecialty: string;
+  doctorQualification?: string;
   doctorRoomNumber: string;
   tokenNumber: number;
   tokenType: TokenType;
