@@ -82,6 +82,38 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   // Queue and Session state
   const [sessions, setSessions] = useState<OpdSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const selectedSessionIdRef = useRef<string>('');
+  useEffect(() => {
+    selectedSessionIdRef.current = selectedSessionId;
+  }, [selectedSessionId]);
+
+  const [activeShift, setActiveShift] = useState<'MORNING' | 'EVENING'>(() => {
+    const hr = new Date().getHours();
+    return hr >= 16 ? 'EVENING' : 'MORNING';
+  });
+
+  const isEveningSession = (s: { sessionName?: string; startTime?: string }) => {
+    const name = (s.sessionName || '').toUpperCase();
+    if (name.includes('EVENING') || name.includes('NIGHT')) return true;
+    if (name.includes('MORNING')) return false;
+    if (s.startTime) {
+      const hr = parseInt(s.startTime.split(':')[0], 10);
+      return hr >= 16;
+    }
+    return false;
+  };
+
+  const isMorningSession = (s: { sessionName?: string; startTime?: string }) => !isEveningSession(s);
+
+  const getDoctorSessionForShift = (docId: string, shift: 'MORNING' | 'EVENING') => {
+    const docSessions = sessions.filter(s => s.doctorId === docId);
+    if (shift === 'EVENING') {
+      return docSessions.find(s => isEveningSession(s)) || null;
+    } else {
+      return docSessions.find(s => isMorningSession(s)) || null;
+    }
+  };
+
   const [queueBoard, setQueueBoard] = useState<QueueBoard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -269,37 +301,90 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     setLatestArrival(null);
   }, [selectedDoctorId, selectedSessionId, activeTab]);
 
+  const activeShiftRef = useRef<'MORNING' | 'EVENING'>(activeShift);
+  useEffect(() => {
+    activeShiftRef.current = activeShift;
+  }, [activeShift]);
+
+  const handleShiftChange = (newShift: 'MORNING' | 'EVENING') => {
+    setActiveShift(newShift);
+    activeShiftRef.current = newShift;
+    const targetDocId = selectedDoctorIdRef.current || (doctors.length > 0 ? doctors[0].id : '');
+    if (targetDocId) {
+      const docSessions = sessions.filter(s => s.doctorId === targetDocId);
+      const shiftSession = newShift === 'EVENING'
+        ? (docSessions.find(s => isEveningSession(s)) || null)
+        : (docSessions.find(s => isMorningSession(s)) || null);
+
+      if (shiftSession) {
+        setSelectedSessionId(shiftSession.id);
+        selectedSessionIdRef.current = shiftSession.id;
+        loadQueueBoard(shiftSession.id);
+      } else {
+        setSelectedSessionId('');
+        selectedSessionIdRef.current = '';
+        setQueueBoard(null);
+      }
+    }
+  };
+
   // 1. Initial Load: Fetch Sessions for Selected Date and Doctors
   useEffect(() => {
-    loadSessions(selectedDate);
+    loadSessions(selectedDate, true);
   }, [selectedDate, currentUser.hospitalId]);
 
   useEffect(() => {
     loadDoctors();
   }, [currentUser.hospitalId]);
 
-  const loadSessions = async (targetDate: string = selectedDate) => {
+  const loadSessions = async (targetDate: string = selectedDate, showSpinner: boolean = false) => {
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
       setError(null);
       const data = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
       setSessions(data);
-      if (data.length > 0) {
-        if (!selectedSessionId || !data.some(s => s.id === selectedSessionId)) {
-          setSelectedSessionId(data[0].id);
-          if (!selectedDoctorIdRef.current && data[0].doctorId) {
-            setSelectedDoctorId(data[0].doctorId);
-            selectedDoctorIdRef.current = data[0].doctorId;
+
+      let currentDocId = selectedDoctorIdRef.current;
+      if (!currentDocId) {
+        if (doctors.length > 0) {
+          currentDocId = doctors[0].id;
+        } else if (data.length > 0 && data[0].doctorId) {
+          currentDocId = data[0].doctorId;
+        }
+        if (currentDocId) {
+          setSelectedDoctorId(currentDocId);
+          selectedDoctorIdRef.current = currentDocId;
+        }
+      }
+
+      if (currentDocId) {
+        const docSessions = data.filter(s => s.doctorId === currentDocId);
+        const currentShift = activeShiftRef.current;
+        const shiftSession = currentShift === 'EVENING'
+          ? (docSessions.find(s => isEveningSession(s)) || null)
+          : (docSessions.find(s => isMorningSession(s)) || null);
+
+        if (shiftSession) {
+          if (selectedSessionIdRef.current !== shiftSession.id) {
+            setSelectedSessionId(shiftSession.id);
+            selectedSessionIdRef.current = shiftSession.id;
+          }
+        } else {
+          if (selectedSessionIdRef.current !== '') {
+            setSelectedSessionId('');
+            selectedSessionIdRef.current = '';
+            setQueueBoard(null);
           }
         }
       } else {
         setSelectedSessionId('');
+        selectedSessionIdRef.current = '';
         setQueueBoard(null);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load sessions');
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
@@ -322,9 +407,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       const docs = await api.getDoctors(currentUser.hospitalId, false);
       setDoctors(docs);
       if (docs.length > 0 && !selectedDoctorIdRef.current) {
-        const currentSession = sessions.find(s => s.id === selectedSessionId);
-        const initialDoc = currentSession ? docs.find(d => d.id === currentSession.doctorId) : docs[0];
-        const chosenId = initialDoc ? initialDoc.id : docs[0].id;
+        const chosenId = docs[0].id;
         setSelectedDoctorId(chosenId);
         selectedDoctorIdRef.current = chosenId;
       }
@@ -353,8 +436,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     sseRef.current = sse;
 
     const refreshActiveData = () => {
-      loadQueueBoard(selectedSessionId, false);
-      loadSessions(selectedDate);
+      if (selectedSessionIdRef.current) {
+        loadQueueBoard(selectedSessionIdRef.current, false);
+      }
+      loadSessions(selectedDate, false);
       const activeDocId = selectedDoctorIdRef.current;
       if (activeDocId) {
         loadDoctorRoomBoard(activeDocId, selectedDate, undefined, false);
@@ -617,15 +702,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     }
   };
 
-  const handleOpenStartShift = (doctorId: string, preset: 'MORNING' | 'EVENING' | 'CUSTOM' = 'MORNING') => {
+  const handleOpenStartShift = (doctorId: string, shiftPreset?: 'MORNING' | 'EVENING') => {
     setShiftDoctorId(doctorId);
-    if (preset === 'MORNING') {
-      setShiftForm({
-        sessionName: 'MORNING OPD',
-        startTime: '09:00',
-        endTime: '14:00',
-      });
-    } else if (preset === 'EVENING') {
+    const targetPreset = shiftPreset || activeShift;
+    if (targetPreset === 'EVENING') {
       setShiftForm({
         sessionName: 'EVENING OPD',
         startTime: '17:00',
@@ -633,9 +713,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       });
     } else {
       setShiftForm({
-        sessionName: 'OPD CLINIC',
-        startTime: '10:00',
-        endTime: '16:00',
+        sessionName: 'MORNING OPD',
+        startTime: '09:00',
+        endTime: '14:00',
       });
     }
     setShowShiftModal(true);
@@ -663,8 +743,20 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       localStorage.removeItem(`opd_session_reopen_${newSession.id}`);
       setShowShiftModal(false);
 
-      await loadSessions(selectedDate);
+      if (isEveningSession(newSession)) {
+        setActiveShift('EVENING');
+        activeShiftRef.current = 'EVENING';
+      } else {
+        setActiveShift('MORNING');
+        activeShiftRef.current = 'MORNING';
+      }
+
+      setSelectedDoctorId(shiftDoctorId);
+      selectedDoctorIdRef.current = shiftDoctorId;
       setSelectedSessionId(newSession.id);
+      selectedSessionIdRef.current = newSession.id;
+
+      await loadSessions(selectedDate);
 
       if (activeTab === 'DOCTOR_ROOM') {
         await loadDoctorRoomBoard(shiftDoctorId, selectedDate, newSession.id);
@@ -1139,7 +1231,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 </div>
               </div>
 
-              {/* Period / Date Filter Toolbar */}
+              {/* Period / Date Filter Toolbar & Shift Switcher */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                 <div className="flex items-center space-x-2 flex-wrap gap-y-2">
                   <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold">
@@ -1184,6 +1276,36 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     />
                   </div>
 
+                  {/* OPD Shift Switcher (Morning vs Evening) */}
+                  <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold">
+                    <button
+                      type="button"
+                      onClick={() => handleShiftChange('MORNING')}
+                      className={`px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
+                        activeShift === 'MORNING'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Morning OPD Shift (9:00 AM to 2:00 PM)"
+                    >
+                      <Sunrise className="w-3.5 h-3.5" />
+                      <span>Morning OPD (9 AM - 2 PM)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShiftChange('EVENING')}
+                      className={`px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
+                        activeShift === 'EVENING'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Evening OPD Shift (5:00 PM to 7:00 PM)"
+                    >
+                      <Sunset className="w-3.5 h-3.5" />
+                      <span>Evening OPD (5 PM - 7 PM)</span>
+                    </button>
+                  </div>
+
                   {selectedDate !== todayStr && (
                     <div className="flex items-center space-x-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-xl text-xs font-bold">
                       <span>Historical View ({selectedDate})</span>
@@ -1209,24 +1331,31 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 </div>
               </div>
 
-              {/* Doctor Session Carousel / Cards */}
-              {sessions.length > 0 ? (
+              {/* Doctor Session Carousel / Cards - EXACTLY ONE CARD PER ACTIVE DOCTOR */}
+              {doctors.filter(d => d.active).length > 0 ? (
                 <div className="flex space-x-3 overflow-x-auto pb-2 pt-1 scrollbar-thin">
-                  {sessions.map((s) => {
-                    const isSelected = selectedSessionId === s.id;
+                  {doctors.filter(d => d.active).map((doc) => {
+                    const s = getDoctorSessionForShift(doc.id, activeShift);
+                    const isSelected = selectedDoctorId === doc.id;
                     return (
                       <div
-                        key={s.id}
+                        key={doc.id}
                         onClick={() => {
-                          setSelectedSessionId(s.id);
-                          if (s.doctorId) {
-                            setSelectedDoctorId(s.doctorId);
-                            selectedDoctorIdRef.current = s.doctorId;
+                          setSelectedDoctorId(doc.id);
+                          selectedDoctorIdRef.current = doc.id;
+                          if (s) {
+                            setSelectedSessionId(s.id);
+                            selectedSessionIdRef.current = s.id;
+                            loadQueueBoard(s.id);
+                          } else {
+                            setSelectedSessionId('');
+                            selectedSessionIdRef.current = '';
+                            setQueueBoard(null);
                           }
                           setLatestArrival(null);
                           setError(null);
                         }}
-                        className={`flex-shrink-0 text-left p-3.5 rounded-2xl border-2 transition cursor-pointer min-w-[240px] flex flex-col justify-between ${
+                        className={`flex-shrink-0 text-left p-3.5 rounded-2xl border-2 transition cursor-pointer min-w-[250px] flex flex-col justify-between ${
                           isSelected
                             ? 'border-emerald-600 bg-emerald-50/70 shadow-md ring-2 ring-emerald-600/20'
                             : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white'
@@ -1234,55 +1363,71 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       >
                         <div>
                           <div className="flex items-center justify-between mb-1 gap-2">
-                            <span className="font-extrabold text-sm text-slate-900 truncate">{s.doctorName}</span>
+                            <span className="font-extrabold text-sm text-slate-900 truncate">{doc.name}</span>
                             <span className="text-[11px] bg-white px-2 py-0.5 rounded-md border border-slate-200 font-bold text-emerald-700 shadow-2xs whitespace-nowrap flex-shrink-0">
-                              {s.doctorRoomNumber}
+                              {doc.roomNumber}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between gap-1 text-xs text-slate-500 mb-2">
-                            <span className="truncate">{s.doctorSpecialty}</span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-                              {s.sessionName || 'OPD'}
-                            </span>
-                          </div>
+                          <p className="text-xs text-slate-500 truncate mb-2">{doc.specialty}</p>
 
                           {/* Active / Inactive Status Strip */}
                           <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200/60 text-[11px]">
-                            {s.status === 'OPEN' ? (
-                              <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span>Active</span>
-                              </span>
+                            {s ? (
+                              <>
+                                {s.status === 'OPEN' ? (
+                                  <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>Active</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 font-bold text-amber-800" title={getSessionReopenNote(s.id) || undefined}>
+                                    <PauseCircle className="w-3 h-3 text-amber-600" />
+                                    <span className="truncate max-w-[110px]">{getSessionReopenNote(s.id) || 'Paused'}</span>
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleSessionStatus(s);
+                                  }}
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer ${
+                                    s.status === 'OPEN'
+                                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  }`}
+                                >
+                                  {s.status === 'OPEN' ? 'Pause' : 'Activate'}
+                                </button>
+                              </>
                             ) : (
-                              <span className="inline-flex items-center gap-1 font-bold text-amber-800" title={getSessionReopenNote(s.id) || undefined}>
-                                <PauseCircle className="w-3 h-3 text-amber-600" />
-                                <span className="truncate max-w-[110px]">{getSessionReopenNote(s.id) || 'Paused'}</span>
-                              </span>
+                              <>
+                                <span className="text-slate-400 font-semibold italic text-[10px]">
+                                  Shift Not Started
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={startingShift}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenStartShift(doc.id, activeShift);
+                                  }}
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition cursor-pointer"
+                                >
+                                  + Start Shift
+                                </button>
+                              </>
                             )}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleSessionStatus(s);
-                              }}
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer ${
-                                s.status === 'OPEN'
-                                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
-                                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
-                              }`}
-                            >
-                              {s.status === 'OPEN' ? 'Pause' : 'Activate'}
-                            </button>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60 font-semibold gap-2">
-                          <span className="text-slate-600">Waiting: <strong className="text-emerald-700">{s.waitingCount}</strong></span>
+                          <span className="text-slate-600">Waiting: <strong className="text-emerald-700">{s ? s.waitingCount : '—'}</strong></span>
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleEditSessionDoctor(s);
+                              handleOpenEditDoctor(doc);
                             }}
                             className="bg-white hover:bg-emerald-600 hover:text-white text-slate-700 border border-slate-300 hover:border-emerald-600 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1 shadow-2xs transition cursor-pointer"
                             title="Edit this doctor profile"
@@ -1299,37 +1444,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
                   <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
                   <div>
-                    <p className="font-bold text-slate-700 text-sm">No OPD Sessions Found for {selectedDate}</p>
-                    <p className="text-xs text-slate-400">There were no doctor sessions opened or recorded on this date.</p>
+                    <p className="font-bold text-slate-700 text-sm">No Active Doctors Found</p>
+                    <p className="text-xs text-slate-400">Add or configure doctors in the Doctor Rosters tab.</p>
                   </div>
-                  {doctors.length > 0 && (
-                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                      <button
-                        disabled={startingShift}
-                        onClick={() => handleOpenStartShift(doctors[0].id, 'MORNING')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
-                      >
-                        <Sunrise className="w-3.5 h-3.5" />
-                        <span>Start Morning OPD (9 AM - 2 PM)</span>
-                      </button>
-                      <button
-                        disabled={startingShift}
-                        onClick={() => handleOpenStartShift(doctors[0].id, 'EVENING')}
-                        className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
-                      >
-                        <Sunset className="w-3.5 h-3.5" />
-                        <span>Start Evening OPD (5 PM - 7 PM)</span>
-                      </button>
-                    </div>
-                  )}
-                  {selectedDate !== todayStr && (
-                    <button
-                      onClick={() => setSelectedDate(todayStr)}
-                      className="mt-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-3.5 py-1.5 rounded-xl text-xs cursor-pointer transition"
-                    >
-                      Switch to Today's Sessions
-                    </button>
-                  )}
                 </div>
               )}
             </div>
@@ -1348,7 +1465,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       {queueBoard.currentServingToken ? `#${queueBoard.currentServingToken}` : '—'}
                     </div>
                     <p className="text-base font-extrabold text-slate-800">{queueBoard.doctorName}</p>
-                    <p className="text-xs text-slate-500">{queueBoard.doctorRoomNumber} • Slot: {queueBoard.sessionName}</p>
+                    <p className="text-xs text-slate-500">{queueBoard.doctorRoomNumber}</p>
 
                     <button
                       type="button"
@@ -1652,6 +1769,37 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 </div>
               </div>
             )}
+
+            {/* When a doctor is selected but has no session in this shift */}
+            {(!selectedSessionId || !queueBoard) && (
+              <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center space-y-4 shadow-xs">
+                <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mx-auto border border-amber-200">
+                  {activeShift === 'EVENING' ? <Sunset className="w-8 h-8" /> : <Sunrise className="w-8 h-8" />}
+                </div>
+                <div className="max-w-md mx-auto space-y-1">
+                  <h3 className="font-extrabold text-slate-900 text-lg">
+                    {activeShift === 'EVENING' ? 'Evening OPD (5:00 PM - 7:00 PM)' : 'Morning OPD (9:00 AM - 2:00 PM)'} Not Started
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {doctors.find(d => d.id === selectedDoctorId)?.name || 'The selected doctor'} does not have an active session for {activeShift === 'EVENING' ? 'Evening' : 'Morning'} OPD today.
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Opening this shift will allocate tokens starting fresh from <strong className="text-emerald-700 underline font-bold">#1</strong>, while keeping all existing shift data completely intact.
+                  </p>
+                </div>
+                {selectedDoctorId && (
+                  <button
+                    type="button"
+                    disabled={startingShift}
+                    onClick={() => handleOpenStartShift(selectedDoctorId, activeShift)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-6 py-3 rounded-2xl text-xs inline-flex items-center space-x-2 shadow-md transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Start {activeShift === 'EVENING' ? 'Evening OPD (Token #1)' : 'Morning OPD (Token #1)'}</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1770,15 +1918,11 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 {(() => {
                   const docSessions = sessions.filter(s => s.doctorId === selectedDoctorId);
                   const activeSession = docSessions.find(s => s.id === (doctorBoard?.sessionId || selectedSessionId)) || docSessions[0];
-                  const hasEvening = docSessions.some(s => s.sessionName?.toUpperCase().includes('EVENING'));
-                  const hasMorning = docSessions.some(s => s.sessionName?.toUpperCase().includes('MORNING'));
-
                   return (
                     <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
-                      {/* Existing Shifts for this doctor on selectedDate */}
-                      {docSessions.map((s) => {
+                      {/* Existing Shifts for this doctor on selectedDate if multiple */}
+                      {docSessions.length > 1 && docSessions.map((s) => {
                         const isCurrentShift = (doctorBoard?.sessionId === s.id) || (selectedSessionId === s.id);
-                        const isMorning = s.sessionName?.toUpperCase().includes('MORNING');
                         return (
                           <button
                             key={s.id}
@@ -1793,8 +1937,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                             }`}
                           >
-                            {isMorning ? <Sunrise className="w-3.5 h-3.5" /> : <Sunset className="w-3.5 h-3.5" />}
-                            <span>{s.sessionName || (isMorning ? 'Morning OPD' : 'Evening OPD')}</span>
+                            <span>{s.sessionName}</span>
                             <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${isCurrentShift ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-800'}`}>
                               #{s.nextTokenSequence - 1 || 0}
                             </span>
@@ -1802,30 +1945,17 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                         );
                       })}
 
-                      {/* Option to start alternate shift */}
-                      {!hasEvening && docSessions.length > 0 && (
+                      {/* Option to start a new shift */}
+                      {docSessions.length > 0 && (
                         <button
                           type="button"
                           disabled={startingShift}
-                          onClick={() => handleOpenStartShift(selectedDoctorId, 'EVENING')}
-                          className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-xl font-bold flex items-center space-x-1 cursor-pointer transition disabled:opacity-50"
-                          title="Open Evening OPD shift starting with Token #1"
-                        >
-                          <Sunset className="w-3.5 h-3.5 text-amber-600" />
-                          <span>+ Open Evening OPD (5-7 PM)</span>
-                        </button>
-                      )}
-
-                      {!hasMorning && docSessions.length > 0 && (
-                        <button
-                          type="button"
-                          disabled={startingShift}
-                          onClick={() => handleOpenStartShift(selectedDoctorId, 'MORNING')}
+                          onClick={() => handleOpenStartShift(selectedDoctorId)}
                           className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2.5 py-1.5 rounded-xl font-bold flex items-center space-x-1 cursor-pointer transition disabled:opacity-50"
-                          title="Open Morning OPD shift starting with Token #1"
+                          title="Open a new OPD shift starting with Token #1"
                         >
-                          <Sunrise className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>+ Open Morning OPD (9 AM-2 PM)</span>
+                          <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>+ Open New Shift</span>
                         </button>
                       )}
 
@@ -2066,19 +2196,11 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                   <button
                     disabled={startingShift}
-                    onClick={() => handleOpenStartShift(selectedDoctorId, 'MORNING')}
+                    onClick={() => handleOpenStartShift(selectedDoctorId)}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-3 rounded-2xl text-xs flex items-center space-x-2 shadow-md transition cursor-pointer disabled:opacity-50"
                   >
-                    <Sunrise className="w-4 h-4" />
-                    <span>Start Morning OPD (9:00 AM - 2:00 PM)</span>
-                  </button>
-                  <button
-                    disabled={startingShift}
-                    onClick={() => handleOpenStartShift(selectedDoctorId, 'EVENING')}
-                    className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold px-5 py-3 rounded-2xl text-xs flex items-center space-x-2 shadow-md transition cursor-pointer disabled:opacity-50"
-                  >
-                    <Sunset className="w-4 h-4" />
-                    <span>Start Evening OPD (5:00 PM - 7:00 PM)</span>
+                    <Plus className="w-4 h-4" />
+                    <span>Open OPD Shift (Starts with Token #1)</span>
                   </button>
                 </div>
               </div>
@@ -3016,51 +3138,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               </p>
             </div>
 
-            {/* Quick Shift Presets */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 block">Select Shift Template:</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShiftForm({
-                    sessionName: 'MORNING OPD',
-                    startTime: '09:00',
-                    endTime: '14:00',
-                  })}
-                  className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2.5 ${
-                    shiftForm.sessionName.includes('MORNING')
-                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold ring-2 ring-emerald-400/30'
-                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                  }`}
-                >
-                  <Sunrise className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <div>
-                    <div className="font-bold">Morning OPD</div>
-                    <div className="text-[10px] text-slate-500">9:00 AM - 2:00 PM</div>
-                  </div>
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => setShiftForm({
-                    sessionName: 'EVENING OPD',
-                    startTime: '17:00',
-                    endTime: '19:00',
-                  })}
-                  className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2.5 ${
-                    shiftForm.sessionName.includes('EVENING')
-                      ? 'bg-amber-50 border-amber-500 text-amber-900 font-bold ring-2 ring-amber-400/30'
-                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                  }`}
-                >
-                  <Sunset className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                  <div>
-                    <div className="font-bold">Evening OPD</div>
-                    <div className="text-[10px] text-slate-500">5:00 PM - 7:00 PM</div>
-                  </div>
-                </button>
-              </div>
-            </div>
 
             {/* Shift Form Details */}
             <div className="space-y-3 pt-1">

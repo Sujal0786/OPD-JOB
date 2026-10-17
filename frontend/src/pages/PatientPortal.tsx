@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
 import { HospitalProfile, OpdSession, TokenResponse, LoginResponse } from '../types';
 import { 
@@ -47,6 +47,40 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [hospital, setHospital] = useState<HospitalProfile | null>(null);
   const [sessions, setSessions] = useState<OpdSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<OpdSession | null>(null);
+
+  // Deduplicate sessions so each doctor has EXACTLY 1 card showing current shift
+  const displayedSessions = useMemo(() => {
+    const currentHour = new Date().getHours();
+    const isEveningTime = currentHour >= 16; // 4:00 PM onwards
+
+    const doctorMap = new Map<string, OpdSession>();
+    sessions.forEach((s) => {
+      const docKey = s.doctorId || s.doctorName;
+      if (!doctorMap.has(docKey)) {
+        doctorMap.set(docKey, s);
+      } else {
+        const existing = doctorMap.get(docKey)!;
+        const isCurrentEvening = (s.sessionName || '').toUpperCase().includes('EVENING') || (s.startTime ? parseInt(s.startTime.split(':')[0], 10) >= 16 : false);
+        const isExistingEvening = (existing.sessionName || '').toUpperCase().includes('EVENING') || (existing.startTime ? parseInt(existing.startTime.split(':')[0], 10) >= 16 : false);
+
+        if (isEveningTime) {
+          if (isCurrentEvening && !isExistingEvening) {
+            doctorMap.set(docKey, s);
+          } else if (isCurrentEvening === isExistingEvening && s.status === 'OPEN' && existing.status !== 'OPEN') {
+            doctorMap.set(docKey, s);
+          }
+        } else {
+          if (!isCurrentEvening && isExistingEvening) {
+            doctorMap.set(docKey, s);
+          } else if (isCurrentEvening === isExistingEvening && s.status === 'OPEN' && existing.status !== 'OPEN') {
+            doctorMap.set(docKey, s);
+          }
+        }
+      }
+    });
+
+    return Array.from(doctorMap.values());
+  }, [sessions]);
 
   // Patient Registration Details
   const [patientName, setPatientName] = useState('');
@@ -442,7 +476,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       freeBanner: '100% FREE OPD TOKENS',
       freeSub: 'Zero booking fees • Always 100% free for all citizens',
       viewDocsAndBook: 'View Doctors & Book',
-      docsAvailable: `${sessions.length} Doctors Available Today`,
+      docsAvailable: `${displayedSessions.length} Doctors Available Today`,
       myToken: 'My Token',
       checkLiveToken: 'Check live token status',
       viewQueue: 'View Queue',
@@ -481,7 +515,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       freeBanner: '100% मुफ़्त ओपीडी टोकन (FREE)',
       freeSub: 'कोई शुल्क नहीं • सभी नागरिकों के लिए पूरी तरह फ्री',
       viewDocsAndBook: 'डॉक्टर देखें व टोकन लें',
-      docsAvailable: `आज ${sessions.length} डॉक्टर उपलब्ध हैं`,
+      docsAvailable: `आज ${displayedSessions.length} डॉक्टर उपलब्ध हैं`,
       myToken: 'मेरा टोकन',
       checkLiveToken: 'टोकन का लाइव स्टेटस देखें',
       viewQueue: 'कतार देखें',
@@ -751,7 +785,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sessions.map((s) => (
+                  {displayedSessions.map((s) => (
                     <div
                       key={s.id}
                       onClick={() => {
@@ -838,7 +872,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
               {/* Grid: 1 col on mobile, 2 on tablet, 3 on laptop/desktop */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {sessions.map((s) => (
+                {displayedSessions.map((s) => (
                   <div
                     key={s.id}
                     className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/90 flex flex-col justify-between space-y-4 hover:border-emerald-500 hover:shadow-md transition-all duration-200 group"
@@ -878,12 +912,12 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                             {s.status === 'PAUSED' || s.status === 'CLOSED' ? (
                               <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300">
                                 <Clock className="w-3 h-3 text-amber-700" />
-                                <span>OPD Paused</span>
+                                <span>Booking Paused by Doctor</span>
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span>{s.sessionName || t.availableToday}</span>
+                                <span>{s.sessionName && s.sessionName.toUpperCase().includes('EVENING') ? 'Evening Shift (5 PM - 7 PM)' : 'Morning Shift (9 AM - 2 PM)'}</span>
                               </span>
                             )}
                           </div>
@@ -1582,7 +1616,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sessions.map((s) => (
+                {displayedSessions.map((s) => (
                   <div key={s.id} className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/90 flex flex-col justify-between space-y-4 hover:border-emerald-500 hover:shadow-md transition-all duration-200">
                     <div className="flex items-center justify-between">
                       <div>
