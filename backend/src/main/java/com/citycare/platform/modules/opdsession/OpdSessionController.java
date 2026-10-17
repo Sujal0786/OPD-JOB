@@ -27,7 +27,7 @@ public class OpdSessionController {
     @GetMapping("/today")
     @Operation(summary = "Get today's OPD sessions for hospital")
     public ResponseEntity<ApiResponse<List<OpdSessionDto>>> getTodaySessions(@PathVariable UUID hospitalId) {
-        List<OpdSessionDto> sessions = sessionService.getSessionsForDate(hospitalId, LocalDate.now());
+        List<OpdSessionDto> sessions = sessionService.getSessionsForDate(hospitalId, LocalDate.now(java.time.ZoneId.of("Asia/Kolkata")));
         return ResponseEntity.ok(ApiResponse.ok(sessions));
     }
 
@@ -41,7 +41,7 @@ public class OpdSessionController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'RECEPTIONIST', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'SUPER_ADMIN')")
     @Operation(summary = "Open or schedule an OPD session")
     public ResponseEntity<ApiResponse<OpdSessionDto>> createSession(
             @PathVariable UUID hospitalId,
@@ -51,7 +51,7 @@ public class OpdSessionController {
     }
 
     @PatchMapping("/{sessionId}/status")
-    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'RECEPTIONIST', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'SUPER_ADMIN')")
     @Operation(summary = "Change OPD session status (OPEN, PAUSED, CLOSED)")
     public ResponseEntity<ApiResponse<OpdSessionDto>> updateSessionStatus(
             @PathVariable UUID hospitalId,

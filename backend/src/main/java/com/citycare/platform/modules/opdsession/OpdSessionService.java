@@ -49,28 +49,35 @@ public class OpdSessionService {
         this.auditLogService = auditLogService;
     }
 
+    private static final java.time.ZoneId IST_ZONE = java.time.ZoneId.of("Asia/Kolkata");
+
+    private LocalDate getTodayIst() {
+        return LocalDate.now(IST_ZONE);
+    }
+
     @Transactional
     public List<OpdSessionDto> getSessionsForDate(UUID hospitalId, LocalDate date) {
         tenantValidator.validateHospitalAccess(hospitalId);
         List<OpdSession> sessions = new java.util.ArrayList<>(sessionRepository.findAllByHospitalIdAndSessionDate(hospitalId, date));
-        if (date.equals(LocalDate.now())) {
-            ensureTodaySessionsForActiveDoctors(hospitalId, sessions);
+        LocalDate today = getTodayIst();
+        if (date.equals(today)) {
+            ensureSessionsForActiveDoctors(hospitalId, date, sessions);
         }
         return sessions.stream().map(this::mapToDto).toList();
     }
 
     @Transactional
     public List<OpdSessionDto> getPublicTodaySessions(UUID hospitalId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = getTodayIst();
         List<OpdSession> sessions = new java.util.ArrayList<>(sessionRepository.findAllByHospitalIdAndSessionDate(hospitalId, today));
-        ensureTodaySessionsForActiveDoctors(hospitalId, sessions);
+        ensureSessionsForActiveDoctors(hospitalId, today, sessions);
         return sessions.stream()
                 .filter(s -> s.getDoctor().isActive())
                 .map(this::mapToDto)
                 .toList();
     }
 
-    private void ensureTodaySessionsForActiveDoctors(UUID hospitalId, List<OpdSession> currentSessions) {
+    private void ensureSessionsForActiveDoctors(UUID hospitalId, LocalDate sessionDate, List<OpdSession> currentSessions) {
         java.util.Set<UUID> doctorsWithSession = currentSessions.stream()
                 .map(s -> s.getDoctor().getId())
                 .collect(java.util.stream.Collectors.toSet());
@@ -88,10 +95,10 @@ public class OpdSessionService {
                         null,
                         hospital,
                         d,
-                        LocalDate.now(),
-                        "GENERAL OPD",
+                        sessionDate,
+                        "MORNING OPD",
                         java.time.LocalTime.of(9, 0),
-                        java.time.LocalTime.of(17, 0),
+                        java.time.LocalTime.of(14, 0),
                         OpdSessionStatus.OPEN
                 );
                 sessionRepository.save(newSession);

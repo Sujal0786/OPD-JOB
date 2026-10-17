@@ -30,7 +30,12 @@ import {
   Info,
   Calendar,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  PauseCircle,
+  PlayCircle,
+  Sunrise,
+  Sunset,
+  Moon
 } from 'lucide-react';
 
 interface HospitalDashboardProps {
@@ -106,6 +111,22 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   }, [selectedDoctorId]);
   const [doctorBoard, setDoctorBoard] = useState<QueueBoard | null>(null);
   const [loadingDoctorBoard, setLoadingDoctorBoard] = useState(false);
+
+  // Session Pause / Deactivation & Shift Scheduling State
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [sessionToPause, setSessionToPause] = useState<OpdSession | null>(null);
+  const [customReopenTime, setCustomReopenTime] = useState('');
+  const [pausingSession, setPausingSession] = useState(false);
+
+  // Dynamic Shift Creation State
+  const [showShiftModal, setShowShiftModal] = useState(false);
+  const [shiftDoctorId, setShiftDoctorId] = useState<string>('');
+  const [shiftForm, setShiftForm] = useState({
+    sessionName: 'MORNING OPD',
+    startTime: '09:00',
+    endTime: '14:00',
+  });
+  const [startingShift, setStartingShift] = useState(false);
 
   // Walk-in Control state
   const [walkInCount, setWalkInCount] = useState<number>(5);
@@ -335,7 +356,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       loadSessions(selectedDate);
       const activeDocId = selectedDoctorIdRef.current;
       if (activeDocId) {
-        loadDoctorRoomBoard(activeDocId);
+        loadDoctorRoomBoard(activeDocId, selectedDate, undefined, false);
       }
     };
 
@@ -474,27 +495,194 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     }
   };
 
-  // 3. Load Doctor View board when selectedDoctorId changes
+  // 3. Load Doctor View board when selectedDoctorId or selectedDate changes
   useEffect(() => {
     if (activeTab === 'DOCTOR_ROOM' && selectedDoctorId) {
-      loadDoctorRoomBoard(selectedDoctorId);
+      loadDoctorRoomBoard(selectedDoctorId, selectedDate);
     }
-  }, [activeTab, selectedDoctorId]);
+  }, [activeTab, selectedDoctorId, selectedDate]);
 
-  const loadDoctorRoomBoard = async (docId: string) => {
+  const loadDoctorRoomBoard = async (docId: string, targetDate: string = selectedDate, targetSessionId?: string, showSpinner: boolean = true) => {
     if (!docId) return;
     try {
-      setLoadingDoctorBoard(true);
-      const board = await api.getDoctorLiveQueue(currentUser.hospitalId, docId);
-      if (selectedDoctorIdRef.current === docId) {
-        setDoctorBoard(board);
+      if (showSpinner) setLoadingDoctorBoard(true);
+
+      // If explicit targetSessionId provided
+      if (targetSessionId) {
+        setSelectedSessionId(targetSessionId);
+        const board = await api.getQueueBoard(currentUser.hospitalId, targetSessionId);
+        if (selectedDoctorIdRef.current === docId) {
+          setDoctorBoard(board);
+        }
+        return;
+      }
+
+      // Query sessions for this doctor on targetDate
+      const dateSessions = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
+      const docSessions = dateSessions.filter(s => s.doctorId === docId);
+
+      if (docSessions.length > 0) {
+        // Match existing selectedSessionId, or first OPEN, or latest session
+        const active = docSessions.find(s => s.id === selectedSessionId)
+          || docSessions.find(s => s.status === 'OPEN')
+          || docSessions[docSessions.length - 1];
+
+        setSelectedSessionId(active.id);
+        const board = await api.getQueueBoard(currentUser.hospitalId, active.id);
+        if (selectedDoctorIdRef.current === docId) {
+          setDoctorBoard(board);
+        }
+      } else {
+        if (selectedDoctorIdRef.current === docId) {
+          setDoctorBoard(null);
+        }
       }
     } catch (err: unknown) {
-      console.error(err);
+      console.error('Failed to load doctor room board:', err);
+      if (selectedDoctorIdRef.current === docId) {
+        setDoctorBoard(null);
+      }
     } finally {
-      setLoadingDoctorBoard(false);
+      if (showSpinner) setLoadingDoctorBoard(false);
     }
   };
+
+  const getSessionReopenNote = (sessionId: string) => {
+    const custom = localStorage.getItem(`opd_session_reopen_${sessionId}`);
+    if (custom && custom.trim()) return custom.trim();
+    return null;
+  };
+
+  const handleToggleSessionStatus = async (session: OpdSession) => {
+    if (session.status === 'OPEN') {
+      setSessionToPause(session);
+      // Pre-fill with other scheduled shift time on same date if exists, else empty
+      const otherSession = sessions.find(s => s.doctorId === session.doctorId && s.id !== session.id);
+      const suggestedTime = otherSession?.startTime 
+        ? `${otherSession.startTime.slice(0, 5)} (${otherSession.sessionName})` 
+        : '';
+      setCustomReopenTime(suggestedTime);
+      setShowPauseModal(true);
+    } else {
+      try {
+        await api.updateSessionStatus(currentUser.hospitalId, session.id, 'OPEN');
+        localStorage.removeItem(`opd_session_reopen_${session.id}`);
+        await loadSessions(selectedDate);
+        if (activeTab === 'DOCTOR_ROOM' && selectedDoctorId) {
+          await loadDoctorRoomBoard(selectedDoctorId, selectedDate, session.id);
+        } else if (selectedSessionId) {
+          await loadQueueBoard(session.id, false);
+        }
+        notifyQueueSync({ sessionId: session.id, status: 'OPEN', action: 'STATUS_UPDATED' });
+      } catch (err: unknown) {
+        alert(err instanceof Error ? err.message : 'Failed to activate session');
+      }
+    }
+  };
+
+  const handleConfirmPauseSession = async () => {
+    if (!sessionToPause) return;
+    try {
+      setPausingSession(true);
+      const reopenNote = customReopenTime.trim();
+
+      await api.updateSessionStatus(currentUser.hospitalId, sessionToPause.id, 'PAUSED');
+      if (reopenNote) {
+        localStorage.setItem(`opd_session_reopen_${sessionToPause.id}`, reopenNote);
+      } else {
+        localStorage.removeItem(`opd_session_reopen_${sessionToPause.id}`);
+      }
+
+      setShowPauseModal(false);
+      setSessionToPause(null);
+
+      await loadSessions(selectedDate);
+      if (activeTab === 'DOCTOR_ROOM' && selectedDoctorId) {
+        await loadDoctorRoomBoard(selectedDoctorId, selectedDate, sessionToPause.id);
+      } else if (selectedSessionId) {
+        await loadQueueBoard(sessionToPause.id, false);
+      }
+
+      notifyQueueSync({
+        sessionId: sessionToPause.id,
+        status: 'PAUSED',
+        reopenTime: reopenNote || undefined,
+        action: 'STATUS_UPDATED',
+      });
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to pause session');
+    } finally {
+      setPausingSession(false);
+    }
+  };
+
+  const handleOpenStartShift = (doctorId: string, preset: 'MORNING' | 'EVENING' | 'CUSTOM' = 'MORNING') => {
+    setShiftDoctorId(doctorId);
+    if (preset === 'MORNING') {
+      setShiftForm({
+        sessionName: 'MORNING OPD',
+        startTime: '09:00',
+        endTime: '14:00',
+      });
+    } else if (preset === 'EVENING') {
+      setShiftForm({
+        sessionName: 'EVENING OPD',
+        startTime: '17:00',
+        endTime: '19:00',
+      });
+    } else {
+      setShiftForm({
+        sessionName: 'OPD CLINIC',
+        startTime: '10:00',
+        endTime: '16:00',
+      });
+    }
+    setShowShiftModal(true);
+  };
+
+  const handleConfirmStartShift = async () => {
+    if (!shiftDoctorId || !shiftForm.sessionName.trim()) {
+      alert('Please specify a valid shift name');
+      return;
+    }
+    try {
+      setStartingShift(true);
+      const sessionName = shiftForm.sessionName.trim().toUpperCase();
+      const startTime = shiftForm.startTime ? `${shiftForm.startTime}:00` : undefined;
+      const endTime = shiftForm.endTime ? `${shiftForm.endTime}:00` : undefined;
+
+      const newSession = await api.createSession(currentUser.hospitalId, {
+        doctorId: shiftDoctorId,
+        sessionDate: selectedDate,
+        sessionName,
+        startTime,
+        endTime,
+      });
+
+      localStorage.removeItem(`opd_session_reopen_${newSession.id}`);
+      setShowShiftModal(false);
+
+      await loadSessions(selectedDate);
+      setSelectedSessionId(newSession.id);
+
+      if (activeTab === 'DOCTOR_ROOM') {
+        await loadDoctorRoomBoard(shiftDoctorId, selectedDate, newSession.id);
+      } else {
+        await loadQueueBoard(newSession.id, true);
+      }
+
+      notifyQueueSync({
+        sessionId: newSession.id,
+        action: 'SESSION_CREATED',
+        sessionName,
+      });
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to start OPD session');
+    } finally {
+      setStartingShift(false);
+    }
+  };
+
 
   const notifyQueueSync = (extraPayload: Record<string, unknown> = {}) => {
     try {
@@ -1044,16 +1232,50 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                         }`}
                       >
                         <div>
-                          <div className="flex items-center justify-between mb-1.5 gap-2">
+                          <div className="flex items-center justify-between mb-1 gap-2">
                             <span className="font-extrabold text-sm text-slate-900 truncate">{s.doctorName}</span>
                             <span className="text-[11px] bg-white px-2 py-0.5 rounded-md border border-slate-200 font-bold text-emerald-700 shadow-2xs whitespace-nowrap flex-shrink-0">
                               {s.doctorRoomNumber}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 truncate mb-2">{s.doctorSpecialty}</p>
+                          <div className="flex items-center justify-between gap-1 text-xs text-slate-500 mb-2">
+                            <span className="truncate">{s.doctorSpecialty}</span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                              {s.sessionName || 'OPD'}
+                            </span>
+                          </div>
+
+                          {/* Active / Inactive Status Strip */}
+                          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200/60 text-[11px]">
+                            {s.status === 'OPEN' ? (
+                              <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>Active</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-bold text-amber-800" title={getSessionReopenNote(s.id, s.sessionName)}>
+                                <PauseCircle className="w-3 h-3 text-amber-600" />
+                                <span className="truncate max-w-[110px]">{getSessionReopenNote(s.id, s.sessionName)}</span>
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleSessionStatus(s);
+                              }}
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer ${
+                                s.status === 'OPEN'
+                                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                              }`}
+                            >
+                              {s.status === 'OPEN' ? 'Pause' : 'Activate'}
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200/60 font-semibold gap-2">
+                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60 font-semibold gap-2">
                           <span className="text-slate-600">Waiting: <strong className="text-emerald-700">{s.waitingCount}</strong></span>
                           <button
                             type="button"
@@ -1073,14 +1295,36 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   })}
                 </div>
               ) : (
-                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
                   <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
-                  <p className="font-bold text-slate-700 text-sm">No OPD Sessions Found for {selectedDate}</p>
-                  <p className="text-xs text-slate-400">There were no doctor sessions opened or recorded on this date.</p>
+                  <div>
+                    <p className="font-bold text-slate-700 text-sm">No OPD Sessions Found for {selectedDate}</p>
+                    <p className="text-xs text-slate-400">There were no doctor sessions opened or recorded on this date.</p>
+                  </div>
+                  {doctors.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                      <button
+                        disabled={startingShift}
+                        onClick={() => handleOpenStartShift(doctors[0].id, 'MORNING')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
+                      >
+                        <Sunrise className="w-3.5 h-3.5" />
+                        <span>Start Morning OPD (9 AM - 2 PM)</span>
+                      </button>
+                      <button
+                        disabled={startingShift}
+                        onClick={() => handleOpenStartShift(doctors[0].id, 'EVENING')}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 shadow-sm transition cursor-pointer disabled:opacity-50"
+                      >
+                        <Sunset className="w-3.5 h-3.5" />
+                        <span>Start Evening OPD (5 PM - 7 PM)</span>
+                      </button>
+                    </div>
+                  )}
                   {selectedDate !== todayStr && (
                     <button
                       onClick={() => setSelectedDate(todayStr)}
-                      className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs cursor-pointer transition shadow-xs"
+                      className="mt-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-3.5 py-1.5 rounded-xl text-xs cursor-pointer transition"
                     >
                       Switch to Today's Sessions
                     </button>
@@ -1089,8 +1333,8 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               )}
             </div>
 
-            {/* Live Queue Board Grid */}
-            {queueBoard && (
+            {/* Live Queue Board Grid - only displayed when sessions exist for selected date */}
+            {queueBoard && sessions.length > 0 && selectedSessionId && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Room Status & Bulk Walk-In Tool */}
                 <div className="space-y-6">
@@ -1415,59 +1659,206 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         {/* ------------------------------------------------------------- */}
         {activeTab === 'DOCTOR_ROOM' && (
           <div className="space-y-5">
-            {/* Doctor Picker */}
-            <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-3 bg-emerald-100 text-emerald-800 rounded-2xl">
-                  <Stethoscope className="w-6 h-6" />
+            {/* Doctor & Date Header */}
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-100">
+                <div className="flex items-center space-x-3">
+                  <div className="p-3 bg-emerald-100 text-emerald-800 rounded-2xl">
+                    <Stethoscope className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-slate-900 text-base">Doctor Consultation Room Mode</h2>
+                    <p className="text-xs text-slate-500">Dedicated desk for doctors inside their consultation chamber</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="font-extrabold text-slate-900 text-base">Doctor Consultation Room Mode</h2>
-                  <p className="text-xs text-slate-500">Dedicated desk for doctors inside their consultation chamber</p>
+
+                <div className="flex items-center space-x-3">
+                  <label className="text-xs font-bold text-slate-600">Select Doctor:</label>
+                  <select
+                    value={selectedDoctorId}
+                    onChange={(e) => {
+                      const newDocId = e.target.value;
+                      setSelectedDoctorId(newDocId);
+                      selectedDoctorIdRef.current = newDocId;
+                      setLatestArrival(null);
+                      loadDoctorRoomBoard(newDocId, selectedDate);
+                    }}
+                    className="px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {doctors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} — {d.roomNumber} ({d.specialty})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const doc = doctors.find((d) => d.id === selectedDoctorId);
+                      if (doc) handleOpenEditDoctor(doc);
+                    }}
+                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 border border-emerald-300 transition cursor-pointer"
+                    title="Edit Selected Doctor Profile"
+                  >
+                    <Edit className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Edit Doctor</span>
+                  </button>
+                  <button
+                    onClick={() => selectedDoctorId && loadDoctorRoomBoard(selectedDoctorId, selectedDate)}
+                    className="p-2 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                    title="Refresh Doctor Queue"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingDoctorBoard ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3">
-                <label className="text-xs font-bold text-slate-600">Select Doctor:</label>
-                <select
-                  value={selectedDoctorId}
-                  onChange={(e) => {
-                    const newDocId = e.target.value;
-                    setSelectedDoctorId(newDocId);
-                    selectedDoctorIdRef.current = newDocId;
-                    setLatestArrival(null);
-                    loadDoctorRoomBoard(newDocId);
-                    const matchingSession = sessions.find(s => s.doctorId === newDocId);
-                    if (matchingSession) {
-                      setSelectedSessionId(matchingSession.id);
-                    }
-                  }}
-                  className="px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  {doctors.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} — {d.roomNumber} ({d.specialty})
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const doc = doctors.find((d) => d.id === selectedDoctorId);
-                    if (doc) handleOpenEditDoctor(doc);
-                  }}
-                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 border border-emerald-300 transition cursor-pointer"
-                  title="Edit Selected Doctor Profile"
-                >
-                  <Edit className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Edit Doctor</span>
-                </button>
-                <button
-                  onClick={() => selectedDoctorId && loadDoctorRoomBoard(selectedDoctorId)}
-                  className="p-2 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                >
-                  <RefreshCw className={`w-4 h-4 ${loadingDoctorBoard ? 'animate-spin' : ''}`} />
-                </button>
+              {/* Date & Shift Filter Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                {/* Date Selection */}
+                <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                  <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(todayStr)}
+                      className={`px-3 py-1 rounded-lg transition font-bold cursor-pointer ${
+                        selectedDate === todayStr
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(getYesterdayString())}
+                      className={`px-3 py-1 rounded-lg transition font-bold cursor-pointer ${
+                        selectedDate === getYesterdayString()
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Yesterday
+                    </button>
+                  </div>
+
+                  <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
+                    <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-bold text-slate-600">Date:</span>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      max={todayStr}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setSelectedDate(e.target.value);
+                        }
+                      }}
+                      className="font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                    />
+                  </div>
+
+                  {selectedDate !== todayStr && (
+                    <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                      Historical View ({selectedDate})
+                    </span>
+                  )}
+                </div>
+
+                {/* Shift Selector & Status for Selected Doctor */}
+                {(() => {
+                  const docSessions = sessions.filter(s => s.doctorId === selectedDoctorId);
+                  const activeSession = docSessions.find(s => s.id === (doctorBoard?.sessionId || selectedSessionId)) || docSessions[0];
+                  const hasEvening = docSessions.some(s => s.sessionName?.toUpperCase().includes('EVENING'));
+                  const hasMorning = docSessions.some(s => s.sessionName?.toUpperCase().includes('MORNING'));
+
+                  return (
+                    <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
+                      {/* Existing Shifts for this doctor on selectedDate */}
+                      {docSessions.map((s) => {
+                        const isCurrentShift = (doctorBoard?.sessionId === s.id) || (selectedSessionId === s.id);
+                        const isMorning = s.sessionName?.toUpperCase().includes('MORNING');
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedSessionId(s.id);
+                              loadDoctorRoomBoard(selectedDoctorId, selectedDate, s.id);
+                            }}
+                            className={`px-3 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 border transition cursor-pointer ${
+                              isCurrentShift
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {isMorning ? <Sunrise className="w-3.5 h-3.5" /> : <Sunset className="w-3.5 h-3.5" />}
+                            <span>{s.sessionName || (isMorning ? 'Morning OPD' : 'Evening OPD')}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${isCurrentShift ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                              #{s.nextTokenSequence - 1 || 0}
+                            </span>
+                          </button>
+                        );
+                      })}
+
+                      {/* Option to start alternate shift */}
+                      {!hasEvening && docSessions.length > 0 && (
+                        <button
+                          type="button"
+                          disabled={startingShift}
+                          onClick={() => handleOpenStartShift(selectedDoctorId, 'EVENING')}
+                          className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-xl font-bold flex items-center space-x-1 cursor-pointer transition disabled:opacity-50"
+                          title="Open Evening OPD shift starting with Token #1"
+                        >
+                          <Sunset className="w-3.5 h-3.5 text-amber-600" />
+                          <span>+ Open Evening OPD (5-7 PM)</span>
+                        </button>
+                      )}
+
+                      {!hasMorning && docSessions.length > 0 && (
+                        <button
+                          type="button"
+                          disabled={startingShift}
+                          onClick={() => handleOpenStartShift(selectedDoctorId, 'MORNING')}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2.5 py-1.5 rounded-xl font-bold flex items-center space-x-1 cursor-pointer transition disabled:opacity-50"
+                          title="Open Morning OPD shift starting with Token #1"
+                        >
+                          <Sunrise className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>+ Open Morning OPD (9 AM-2 PM)</span>
+                        </button>
+                      )}
+
+                      {/* Active / Inactive Status Badge & Toggle */}
+                      {activeSession && (
+                        <div className="flex items-center space-x-2 pl-2 border-l border-slate-200">
+                          {activeSession.status === 'OPEN' ? (
+                            <span className="inline-flex items-center space-x-1 font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span>Active</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center space-x-1 font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-xl" title={getSessionReopenNote(activeSession.id) || undefined}>
+                              <PauseCircle className="w-3.5 h-3.5 text-amber-600" />
+                              <span className="truncate max-w-[120px]">{getSessionReopenNote(activeSession.id) || 'Paused'}</span>
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSessionStatus(activeSession)}
+                            className={`px-3 py-1 rounded-xl font-bold border transition cursor-pointer text-xs ${
+                              activeSession.status === 'OPEN'
+                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-xs'
+                            }`}
+                          >
+                            {activeSession.status === 'OPEN' ? 'Pause Shift' : 'Activate OPD'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1652,11 +2043,43 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : loadingDoctorBoard ? (
               <div className="p-16 text-center bg-white rounded-3xl border border-slate-200 space-y-3">
                 <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto" />
                 <p className="font-bold text-slate-700 text-sm">Loading Consultation Room...</p>
                 <p className="text-xs text-slate-400">Fetching live doctor queue and waiting patients for selected doctor</p>
+              </div>
+            ) : (
+              <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 space-y-4">
+                <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                  <Stethoscope className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">
+                    No OPD Session Found for {doctors.find(d => d.id === selectedDoctorId)?.name || 'Doctor'} on {selectedDate}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                    There are no sessions recorded for this doctor on this date. Start an OPD shift below to begin allocating tokens starting fresh from #1:
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  <button
+                    disabled={startingShift}
+                    onClick={() => handleOpenStartShift(selectedDoctorId, 'MORNING')}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-3 rounded-2xl text-xs flex items-center space-x-2 shadow-md transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Sunrise className="w-4 h-4" />
+                    <span>Start Morning OPD (9:00 AM - 2:00 PM)</span>
+                  </button>
+                  <button
+                    disabled={startingShift}
+                    onClick={() => handleOpenStartShift(selectedDoctorId, 'EVENING')}
+                    className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold px-5 py-3 rounded-2xl text-xs flex items-center space-x-2 shadow-md transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Sunset className="w-4 h-4" />
+                    <span>Start Evening OPD (5:00 PM - 7:00 PM)</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -2399,6 +2822,301 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   <span>{cleaningStorage ? 'Purging Storage...' : 'Confirm & Clear 7-Day Storage'}</span>
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Pause / Deactivation Modal */}
+      {showPauseModal && sessionToPause && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Pause OPD Token Generation</h3>
+                  <p className="text-xs text-slate-500">Temporarily pause token bookings for {sessionToPause.doctorName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPauseModal(false);
+                  setSessionToPause(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-xs text-amber-900">
+                <p className="font-bold">When will this OPD token session activate again?</p>
+                <p className="text-[11px] text-amber-700 mt-0.5">
+                  This reopening timing will be clearly displayed on the patient mobile portal so patients know when tokens resume.
+                </p>
+              </div>
+
+              {/* Presets Grid */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 block">Select Reopening Shift / Timing:</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPauseReopenPreset('EVENING');
+                      setCustomReopenTime('05:00 PM (Evening OPD)');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2 ${
+                      pauseReopenPreset === 'EVENING'
+                        ? 'bg-amber-50 border-amber-500 text-amber-900 font-bold ring-2 ring-amber-400/30'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <Sunset className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <div>
+                      <div className="font-bold text-[11px]">Evening OPD</div>
+                      <div className="text-[10px] text-slate-500">05:00 PM</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPauseReopenPreset('TOMORROW_MORNING');
+                      setCustomReopenTime('Tomorrow 09:00 AM (Morning OPD)');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2 ${
+                      pauseReopenPreset === 'TOMORROW_MORNING'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold ring-2 ring-emerald-400/30'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <Sunrise className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <div>
+                      <div className="font-bold text-[11px]">Tomorrow Morning</div>
+                      <div className="text-[10px] text-slate-500">09:00 AM</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPauseReopenPreset('30_MIN');
+                      setCustomReopenTime('In 30 Minutes');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2 ${
+                      pauseReopenPreset === '30_MIN'
+                        ? 'bg-blue-50 border-blue-500 text-blue-900 font-bold ring-2 ring-blue-400/30'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <Clock className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    <div>
+                      <div className="font-bold text-[11px]">Short Break</div>
+                      <div className="text-[10px] text-slate-500">In 30 Mins</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPauseReopenPreset('CUSTOM');
+                      setCustomReopenTime('');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2 ${
+                      pauseReopenPreset === 'CUSTOM'
+                        ? 'bg-purple-50 border-purple-500 text-purple-900 font-bold ring-2 ring-purple-400/30'
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <Edit className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                    <div>
+                      <div className="font-bold text-[11px]">Custom</div>
+                      <div className="text-[10px] text-slate-500">Clear & Type</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Reopening Timing / Patient Notice <span className="text-slate-400 font-normal">(Doctor can customize freely)</span>:
+                </label>
+                <input
+                  type="text"
+                  value={customReopenTime}
+                  onChange={(e) => setCustomReopenTime(e.target.value)}
+                  placeholder="e.g. 05:00 PM, 06:30 PM, or In 45 mins"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-400">
+                  This note will be shown live to patients on their token booking portal.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPauseModal(false);
+                  setSessionToPause(null);
+                }}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={pausingSession}
+                onClick={handleConfirmPauseSession}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold px-5 py-2 rounded-xl text-xs shadow-md transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {pausingSession ? <span>Pausing...</span> : (
+                  <>
+                    <PauseCircle className="w-4 h-4" />
+                    <span>Confirm & Pause OPD</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OPD Shift Creation Modal */}
+      {showShiftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2 text-slate-800">
+                <Calendar className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-black text-base">Open New OPD Shift</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShiftModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200/80 text-xs text-emerald-900">
+              <p className="font-bold">
+                Doctor: {doctors.find(d => d.id === shiftDoctorId)?.name || 'Doctor'}
+              </p>
+              <p className="text-[11px] text-emerald-700 mt-0.5">
+                Date: {selectedDate} • Tokens for this shift will start fresh from <strong className="underline">#1</strong>.
+              </p>
+            </div>
+
+            {/* Quick Shift Presets */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 block">Select Shift Template:</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShiftForm({
+                    sessionName: 'MORNING OPD',
+                    startTime: '09:00',
+                    endTime: '14:00',
+                  })}
+                  className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2.5 ${
+                    shiftForm.sessionName.includes('MORNING')
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold ring-2 ring-emerald-400/30'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <Sunrise className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <div>
+                    <div className="font-bold">Morning OPD</div>
+                    <div className="text-[10px] text-slate-500">9:00 AM - 2:00 PM</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShiftForm({
+                    sessionName: 'EVENING OPD',
+                    startTime: '17:00',
+                    endTime: '19:00',
+                  })}
+                  className={`p-3 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2.5 ${
+                    shiftForm.sessionName.includes('EVENING')
+                      ? 'bg-amber-50 border-amber-500 text-amber-900 font-bold ring-2 ring-amber-400/30'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <Sunset className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <div>
+                    <div className="font-bold">Evening OPD</div>
+                    <div className="text-[10px] text-slate-500">5:00 PM - 7:00 PM</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Shift Form Details */}
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Shift / Session Name:</label>
+                <input
+                  type="text"
+                  value={shiftForm.sessionName}
+                  onChange={(e) => setShiftForm(prev => ({ ...prev, sessionName: e.target.value }))}
+                  placeholder="e.g. MORNING OPD, EVENING OPD, SPECIAL CLINIC"
+                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-semibold uppercase text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Start Time:</label>
+                  <input
+                    type="time"
+                    value={shiftForm.startTime}
+                    onChange={(e) => setShiftForm(prev => ({ ...prev, startTime: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">End Time:</label>
+                  <input
+                    type="time"
+                    value={shiftForm.endTime}
+                    onChange={(e) => setShiftForm(prev => ({ ...prev, endTime: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowShiftModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={startingShift}
+                onClick={handleConfirmStartShift}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-2 rounded-xl text-xs shadow-md transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {startingShift ? <span>Starting...</span> : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Confirm & Open OPD Shift</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

@@ -290,6 +290,35 @@ export const api = {
     return parseJsonResponse<OpdSession[]>(res, 'Failed to load sessions for selected date');
   },
 
+  async createSession(hospitalId: string, payload: {
+    doctorId: string;
+    sessionDate: string;
+    sessionName: string;
+    startTime?: string;
+    endTime?: string;
+  }): Promise<OpdSession> {
+    const res = await fetchWithAuth(`${API_BASE}/hospitals/${hospitalId}/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonResponse<OpdSession>(res, 'Failed to create OPD session');
+  },
+
+  async updateSessionStatus(
+    hospitalId: string,
+    sessionId: string,
+    status: OpdSessionStatus
+  ): Promise<OpdSession> {
+    const res = await fetchWithAuth(`${API_BASE}/hospitals/${hospitalId}/sessions/${sessionId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    return parseJsonResponse<OpdSession>(res, 'Failed to update session status');
+  },
+
+
   async cleanupOldData(hospitalId: string, days: number = 7): Promise<{ deletedSessions: number; deletedTokens: number; daysPurged: number; cutoffDate: string }> {
     const res = await fetchWithAuth(`${API_BASE}/hospitals/${hospitalId}/storage/cleanup?days=${days}`, {
       method: 'POST',

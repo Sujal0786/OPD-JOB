@@ -273,6 +273,12 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
     };
   }, [hospital?.id, refreshSessions]);
 
+  const getSessionReopenNote = (sessionId: string) => {
+    const custom = localStorage.getItem(`opd_session_reopen_${sessionId}`);
+    if (custom && custom.trim()) return custom.trim();
+    return null;
+  };
+
   // SSE Subscription for live patient token
   useEffect(() => {
     if (!activeToken) return;
@@ -869,10 +875,17 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                               <DoorClosed className="w-3 h-3 text-slate-400" />
                               <span>{s.doctorRoomNumber}</span>
                             </span>
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                              <span>{t.availableToday}</span>
-                            </span>
+                            {s.status === 'PAUSED' || s.status === 'CLOSED' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300">
+                                <Clock className="w-3 h-3 text-amber-700" />
+                                <span>OPD Paused</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>{s.sessionName || t.availableToday}</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -891,38 +904,67 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         </div>
                       </div>
 
-                      {/* Next Token Callout Box */}
-                      <div className="bg-gradient-to-r from-amber-50/90 to-amber-50/40 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0">
-                            <Ticket className="w-4 h-4" />
+                      {/* Next Token Callout Box OR Inactive Notice */}
+                      {s.status === 'PAUSED' || s.status === 'CLOSED' ? (
+                        <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 text-xs space-y-1">
+                          <div className="flex items-center space-x-1.5 text-amber-900 font-extrabold">
+                            <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                            <span>Token Booking Paused</span>
                           </div>
-                          <div>
-                            <span className="font-bold text-amber-950 block">{t.nextAvailableToken}:</span>
-                            <span className="text-[10px] text-amber-800/80">
-                              {s.totalWalkinCount > 0 
-                                ? `(${s.totalWalkinCount} ${t.walkInsNotice})` 
-                                : '(Immediate Entry)'}
-                            </span>
-                          </div>
+                          {getSessionReopenNote(s.id) ? (
+                            <p className="text-[11px] text-amber-800">
+                              Reopens: <strong>{getSessionReopenNote(s.id)}</strong>
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-amber-800">
+                              This session is temporarily paused. Please check back shortly.
+                            </p>
+                          )}
+                          <p className="text-[10px] text-amber-700">Tokens will start generating fresh when doctor activates this session.</p>
                         </div>
-                        <span className="text-lg font-black text-amber-900 bg-white px-3 py-1 rounded-lg border border-amber-200 shadow-2xs font-mono">
-                          #{s.nextTokenSequence}
-                        </span>
-                      </div>
+                      ) : (
+                        <div className="bg-gradient-to-r from-amber-50/90 to-amber-50/40 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0">
+                              <Ticket className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="font-bold text-amber-950 block">{t.nextAvailableToken}:</span>
+                              <span className="text-[10px] text-amber-800/80">
+                                {s.totalWalkinCount > 0 
+                                  ? `(${s.totalWalkinCount} ${t.walkInsNotice})` 
+                                  : '(Immediate Entry)'}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-lg font-black text-amber-900 bg-white px-3 py-1 rounded-lg border border-amber-200 shadow-2xs font-mono">
+                            #{s.nextTokenSequence}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* CTA Button */}
-                    <button
-                      onClick={() => {
-                        setSelectedSession(s);
-                        setViewState('CONFIRM_TOKEN');
-                      }}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-xs hover:shadow-md transition-all duration-200 text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] group"
-                    >
-                      <span>{t.getTokenBtn}</span>
-                      <ArrowRight className="w-4 h-4 text-emerald-100 group-hover:translate-x-1 transition-transform" />
-                    </button>
+                    {s.status === 'PAUSED' || s.status === 'CLOSED' ? (
+                      <button
+                        disabled
+                        className="w-full bg-slate-100 text-slate-500 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                      >
+                        <Clock className="w-4 h-4 text-slate-400" />
+                        <span>{getSessionReopenNote(s.id) ? `Booking Paused • Reopens ${getSessionReopenNote(s.id)}` : 'Booking Paused by Doctor'}</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setSelectedSession(s);
+                          setViewState('CONFIRM_TOKEN');
+                        }}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-xs hover:shadow-md transition-all duration-200 text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] group"
+                      >
+                        <span>{t.getTokenBtn}</span>
+                        <ArrowRight className="w-4 h-4 text-emerald-100 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1085,13 +1127,37 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </div>
 
                 {/* Big Green Confirm CTA Button */}
-                <button
-                  onClick={handleConfirmBooking}
-                  disabled={loading || !patientName.trim() || patientPhone.length < 10 || !patientLocation.trim()}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-black py-4 rounded-2xl shadow-xl transition text-base md:text-lg flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
-                >
-                  <span>{loading ? 'Generating...' : t.confirmAndGetToken(selectedSession.nextTokenSequence)}</span>
-                </button>
+                {selectedSession.status === 'PAUSED' || selectedSession.status === 'CLOSED' ? (
+                  <div className="space-y-2">
+                    <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 flex items-center space-x-2.5">
+                      <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                      <div>
+                        <p className="font-extrabold text-sm">OPD Session is Currently Paused</p>
+                        <p className="text-amber-700 mt-0.5">
+                          {getSessionReopenNote(selectedSession.id) ? (
+                            <>Doctor has scheduled this session to reopen at <strong>{getSessionReopenNote(selectedSession.id)}</strong>.</>
+                          ) : (
+                            <>Doctor has temporarily paused token bookings for this session.</>
+                          )} Please return when the session reopens to book your token.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      disabled
+                      className="w-full bg-slate-200 text-slate-500 font-bold py-4 rounded-2xl text-sm flex items-center justify-center space-x-2 cursor-not-allowed"
+                    >
+                      <span>{getSessionReopenNote(selectedSession.id) ? `Booking Paused • Reopens ${getSessionReopenNote(selectedSession.id)}` : 'Booking Paused by Doctor'}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleConfirmBooking}
+                    disabled={loading || !patientName.trim() || patientPhone.length < 10 || !patientLocation.trim()}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-black py-4 rounded-2xl shadow-xl transition text-base md:text-lg flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
+                  >
+                    <span>{loading ? 'Generating...' : t.confirmAndGetToken(selectedSession.nextTokenSequence)}</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
