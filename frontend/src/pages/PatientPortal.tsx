@@ -21,7 +21,11 @@ import {
   ShieldCheck,
   BellRing,
   Search,
-  Calendar
+  Calendar,
+  GraduationCap,
+  DoorClosed,
+  AlertCircle,
+  Award
 } from 'lucide-react';
 import { LanguageToggle } from '../components/LanguageToggle';
 
@@ -440,17 +444,17 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       todayOpdDoctors: `TODAY'S OPD DOCTORS AT ${hospital?.name || 'HOSPITAL'}`,
       liveOpd: 'Live OPD',
       chooseDoctorTitle: 'Choose Doctor For Token',
-      tapToBookNotice: 'Tap doctor photo to book OPD token:',
+      tapToBookNotice: 'Select an available doctor below to book your consultation:',
       availableToday: 'Available Today',
       currentToken: 'Current Token',
       peopleWaiting: 'People Waiting',
       nextAvailableToken: 'Next Available Token',
       walkInsNotice: 'Reception Walk-Ins in queue ahead',
-      getTokenBtn: 'GET TOKEN 👉',
+      getTokenBtn: 'Book OPD Token',
       confirmTokenTitle: 'Confirm Doctor Token',
       room: 'Room',
       todayOpdStatus: "TODAY'S OPD STATUS",
-      confirmAndGetToken: (num: number) => `CONFIRM & GET OPD TOKEN #${num} ➔`,
+      confirmAndGetToken: (num: number) => `Confirm & Generate OPD Token #${num}`,
       namePlaceholder: 'Full Name (e.g. Aman Kumar)',
       phonePlaceholder: '10-Digit Mobile Number',
       locationLabel: 'Location / City / Village / Address *',
@@ -479,17 +483,17 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       todayOpdDoctors: `आज के ओपीडी डॉक्टर - ${hospital?.name || 'अस्पताल'}`,
       liveOpd: 'लाइव ओपीडी',
       chooseDoctorTitle: 'टोकन के लिए डॉक्टर चुनें',
-      tapToBookNotice: 'ओपीडी टोकन के लिए डॉक्टर चुनें:',
+      tapToBookNotice: 'परामर्श के लिए नीचे उपलब्ध डॉक्टर का चयन करें:',
       availableToday: 'आज उपलब्ध हैं',
       currentToken: 'अभी टोकन',
       peopleWaiting: 'इंतज़ार में',
       nextAvailableToken: 'अगला उपलब्ध टोकन',
       walkInsNotice: 'अस्पताल में पहले से आए मरीज़ आगे हैं',
-      getTokenBtn: 'टोकन लें 👉',
+      getTokenBtn: 'ओपीडी टोकन बुक करें',
       confirmTokenTitle: 'डॉक्टर टोकन की पुष्टि करें',
       room: 'कमरा नंबर',
       todayOpdStatus: 'आज की ओपीडी स्थिति (लाइव)',
-      confirmAndGetToken: (num: number) => `पुष्टि करें और टोकन #${num} लें ➔`,
+      confirmAndGetToken: (num: number) => `पुष्टि करें और टोकन #${num} जनरेट करें`,
       namePlaceholder: 'मरीज़ का पूरा नाम (उदा. अमन कुमार)',
       phonePlaceholder: '10 अंकों का मोबाइल नंबर',
       locationLabel: 'स्थान / शहर / गाँव / पता *',
@@ -642,8 +646,8 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     className="bg-emerald-600 hover:bg-emerald-700 text-white p-5 rounded-2xl shadow-md cursor-pointer transition flex items-center justify-between group active:scale-[0.99]"
                   >
                     <div className="flex items-center space-x-3.5">
-                      <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
-                        👨‍⚕️
+                      <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
+                        <Stethoscope className="w-6 h-6 text-white" />
                       </div>
                       <div>
                         <h3 className="font-extrabold text-base md:text-lg leading-tight">
@@ -663,7 +667,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     className="bg-white hover:bg-slate-50 border border-slate-200 p-5 rounded-2xl shadow-xs cursor-pointer transition flex items-center justify-between group"
                   >
                     <div className="flex items-center space-x-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-pink-100 text-pink-700 flex items-center justify-center flex-shrink-0">
+                      <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 border border-teal-100 flex items-center justify-center flex-shrink-0">
                         <Ticket className="w-6 h-6" />
                       </div>
                       <div>
@@ -686,7 +690,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     className="bg-white hover:bg-slate-50 border border-slate-200 p-5 rounded-2xl shadow-xs cursor-pointer transition flex items-center justify-between group"
                   >
                     <div className="flex items-center space-x-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center flex-shrink-0">
                         <Users className="w-6 h-6" />
                       </div>
                       <div>
@@ -720,10 +724,11 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewState('MY_TOKEN')}
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs md:text-sm px-4 py-2.5 rounded-xl transition shadow-xs flex items-center justify-center space-x-2 cursor-pointer flex-shrink-0 active:scale-95"
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs md:text-sm px-4 py-2.5 rounded-xl transition shadow-xs flex items-center justify-center space-x-2 cursor-pointer flex-shrink-0 active:scale-95 group"
                 >
                   <Search className="w-4 h-4" />
-                  <span>{lang === 'HI' ? 'मोबाइल नंबर से खोजें ➔' : 'Search Today\'s Token ➔'}</span>
+                  <span>{lang === 'HI' ? 'मोबाइल नंबर से खोजें' : "Search Today's Token"}</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
 
@@ -747,34 +752,45 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         setSelectedSession(s);
                         setViewState('CONFIRM_TOKEN');
                       }}
-                      className="bg-white rounded-2xl p-4 border border-slate-200 hover:border-emerald-500 shadow-xs cursor-pointer transition flex flex-col justify-between space-y-3"
+                      className="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-emerald-500 shadow-xs hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between space-y-3 group"
                     >
                       <div className="flex items-start space-x-3.5">
                         <div className="relative flex-shrink-0">
                           <img
                             src={s.doctorPhotoUrl || "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&auto=format&fit=crop&q=80"}
                             alt={s.doctorName}
-                            className="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-xs"
+                            className="w-16 h-16 rounded-xl object-cover ring-1 ring-slate-200/80 shadow-2xs"
                           />
-                          <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 text-[10px]">
-                            ✓
+                          <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 shadow-2xs ring-2 ring-white">
+                            <CheckCircle2 className="w-3 h-3" />
                           </span>
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-sm md:text-base text-slate-900 truncate">{s.doctorName}</h4>
-                          <p className="text-xs text-emerald-700 font-semibold">{s.doctorSpecialty}</p>
+                          <h4 className="font-bold text-sm md:text-base text-slate-900 truncate group-hover:text-emerald-950 transition-colors">
+                            {s.doctorName}
+                          </h4>
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-semibold mt-0.5">
+                            <Stethoscope className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                            <span className="truncate">{s.doctorSpecialty}</span>
+                          </div>
                           {s.doctorQualification && (
-                            <p className="text-[11px] text-indigo-700 font-semibold truncate mt-0.5">🎓 {s.doctorQualification}</p>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium mt-0.5">
+                              <GraduationCap className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                              <span className="truncate">{s.doctorQualification}</span>
+                            </div>
                           )}
-                          <p className="text-[11px] text-slate-400 mt-0.5">{s.doctorRoomNumber}</p>
+                          <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-1">
+                            <DoorClosed className="w-3 h-3 text-slate-400" />
+                            <span>{s.doctorRoomNumber}</span>
+                          </div>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                        <div className="space-x-2 text-slate-600">
-                          <span>Serving: <b className="text-slate-800">{s.currentServingToken ? `#${s.currentServingToken}` : '—'}</b></span>
-                          <span>Waiting: <b className="text-emerald-700">{s.waitingCount}</b></span>
+                        <div className="space-x-2 text-slate-600 font-mono">
+                          <span>Serving: <b className="text-slate-900 font-bold">{s.currentServingToken ? `#${s.currentServingToken}` : '—'}</b></span>
+                          <span>Waiting: <b className="text-emerald-700 font-bold">{s.waitingCount}</b></span>
                         </div>
                         <button
                           onClick={(e) => {
@@ -782,9 +798,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                             setSelectedSession(s);
                             setViewState('CONFIRM_TOKEN');
                           }}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1 group-hover:bg-emerald-700"
                         >
-                          Book Token
+                          <span>Book Token</span>
+                          <ArrowRight className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
@@ -799,16 +816,16 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           {/* ========================================================================= */}
           {viewState === 'DOCTOR_LIST' && (
             <div className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 md:p-4 flex items-center justify-between text-xs md:text-sm text-emerald-900 font-medium">
-                <span className="flex items-center space-x-2">
-                  <span>⚡</span>
-                  <span className="font-bold">{t.tapToBookNotice}</span>
+              <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 md:p-4 flex items-center justify-between text-xs md:text-sm text-emerald-950 font-medium shadow-2xs">
+                <span className="flex items-center space-x-2.5">
+                  <Sparkles className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                  <span className="font-semibold text-slate-800">{t.tapToBookNotice}</span>
                 </span>
                 <button
                   onClick={() => speakText(lang === 'HI' ? 'कृपया अपना डॉक्टर चुनें' : 'Please choose your doctor')}
-                  className="text-emerald-700 hover:text-emerald-900 font-bold flex items-center space-x-1 cursor-pointer bg-white px-3 py-1 rounded-lg border border-emerald-200"
+                  className="text-emerald-800 hover:text-emerald-950 font-semibold flex items-center space-x-1.5 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-emerald-200 shadow-2xs hover:bg-emerald-50 transition"
                 >
-                  <Volume2 className="w-4 h-4" />
+                  <Volume2 className="w-4 h-4 text-emerald-700" />
                   <span>{t.listen}</span>
                 </button>
               </div>
@@ -818,7 +835,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 {sessions.map((s) => (
                   <div
                     key={s.id}
-                    className="bg-white rounded-3xl p-5 shadow-sm border-2 border-slate-200/90 flex flex-col justify-between space-y-4 hover:border-emerald-500 transition"
+                    className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/90 flex flex-col justify-between space-y-4 hover:border-emerald-500 hover:shadow-md transition-all duration-200 group"
                   >
                     <div className="space-y-3.5">
                       <div className="flex items-start space-x-3.5">
@@ -826,70 +843,85 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                           <img
                             src={s.doctorPhotoUrl || "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&auto=format&fit=crop&q=80"}
                             alt={s.doctorName}
-                            className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shadow-xs"
+                            className="w-20 h-20 rounded-2xl object-cover ring-1 ring-slate-200/80 shadow-2xs"
                           />
-                          <span className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-1 text-xs">
-                            ✓
+                          <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white rounded-full p-1 shadow-xs ring-2 ring-white">
+                            <CheckCircle2 className="w-3 h-3" />
                           </span>
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-extrabold text-base text-slate-900">{s.doctorName}</h3>
-                          <p className="text-xs text-emerald-700 font-bold mt-0.5">❤️ {s.doctorSpecialty}</p>
+                          <h3 className="font-bold text-base text-slate-900 tracking-tight group-hover:text-emerald-950 transition-colors">
+                            {s.doctorName}
+                          </h3>
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 mt-0.5">
+                            <Stethoscope className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                            <span className="truncate">{s.doctorSpecialty}</span>
+                          </div>
                           {s.doctorQualification && (
-                            <p className="text-[11px] text-indigo-700 font-semibold mt-0.5 flex items-center gap-1">
-                              <span>🎓</span>
-                              <span>{s.doctorQualification}</span>
-                            </p>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium mt-0.5">
+                              <GraduationCap className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                              <span className="truncate">{s.doctorQualification}</span>
+                            </div>
                           )}
-                          <p className="text-[11px] text-slate-500 mt-0.5">{s.doctorRoomNumber}</p>
-
-                          <span className="inline-flex items-center space-x-1 mt-1.5 text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">
-                            <span>🟢</span>
-                            <span>{t.availableToday}</span>
-                          </span>
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60">
+                              <DoorClosed className="w-3 h-3 text-slate-400" />
+                              <span>{s.doctorRoomNumber}</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span>{t.availableToday}</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
 
                       {/* Stats Grid */}
                       <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
                           <span className="text-slate-400 text-[10px] block uppercase font-bold tracking-wider">{t.currentToken}:</span>
-                          <span className="font-black text-slate-800 text-base">
+                          <span className="font-bold text-slate-900 text-lg font-mono">
                             {s.currentServingToken ? `#${s.currentServingToken}` : '—'}
                           </span>
                         </div>
-                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                          <span className="text-slate-400 text-[10px] block uppercase font-bold tracking-wider">{t.peopleWaiting}:</span>
-                          <span className="font-black text-emerald-700 text-base">{s.waitingCount}</span>
+                        <div className="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100/60">
+                          <span className="text-emerald-800/70 text-[10px] block uppercase font-bold tracking-wider">{t.peopleWaiting}:</span>
+                          <span className="font-bold text-emerald-700 text-lg font-mono">{s.waitingCount}</span>
                         </div>
                       </div>
 
                       {/* Next Token Callout Box */}
-                      <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3 flex items-center justify-between text-xs">
-                        <div>
-                          <span className="font-extrabold text-amber-950 block">🎟️ {t.nextAvailableToken}:</span>
-                          <span className="text-[10px] text-amber-800">
-                            {s.totalWalkinCount > 0 
-                              ? `(${s.totalWalkinCount} ${t.walkInsNotice})` 
-                              : '(Direct Entry)'}
-                          </span>
+                      <div className="bg-gradient-to-r from-amber-50/90 to-amber-50/40 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center flex-shrink-0">
+                            <Ticket className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-amber-950 block">{t.nextAvailableToken}:</span>
+                            <span className="text-[10px] text-amber-800/80">
+                              {s.totalWalkinCount > 0 
+                                ? `(${s.totalWalkinCount} ${t.walkInsNotice})` 
+                                : '(Immediate Entry)'}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-xl font-black text-amber-900 bg-white px-3 py-1 rounded-lg border border-amber-200 shadow-xs">
+                        <span className="text-lg font-black text-amber-900 bg-white px-3 py-1 rounded-lg border border-amber-200 shadow-2xs font-mono">
                           #{s.nextTokenSequence}
                         </span>
                       </div>
                     </div>
 
-                    {/* Big CTA Button */}
+                    {/* CTA Button */}
                     <button
                       onClick={() => {
                         setSelectedSession(s);
                         setViewState('CONFIRM_TOKEN');
                       }}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3.5 rounded-2xl shadow-md transition text-sm flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl shadow-xs hover:shadow-md transition-all duration-200 text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] group"
                     >
                       <span>{t.getTokenBtn}</span>
+                      <ArrowRight className="w-4 h-4 text-emerald-100 group-hover:translate-x-1 transition-transform" />
                     </button>
                   </div>
                 ))}
@@ -903,34 +935,42 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           {viewState === 'CONFIRM_TOKEN' && selectedSession && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               {/* Left Column on Laptop (5 cols): Doctor Info Card */}
-              <div className="lg:col-span-5 bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center space-y-4">
+              <div className="lg:col-span-5 bg-white rounded-2xl p-6 shadow-xs border border-slate-200 text-center space-y-4">
                 <div className="relative inline-block mx-auto">
                   <img
                     src={selectedSession.doctorPhotoUrl || "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&auto=format&fit=crop&q=80"}
                     alt={selectedSession.doctorName}
-                    className="w-28 h-28 rounded-3xl object-cover border-2 border-emerald-500 shadow-md mx-auto"
+                    className="w-28 h-28 rounded-2xl object-cover ring-2 ring-emerald-500/80 shadow-md mx-auto"
                   />
-                  <span className="absolute -bottom-1 -right-1 bg-red-500 text-white rounded-full p-1.5 text-xs shadow-xs">
-                    ❤️
+                  <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white rounded-full p-1.5 shadow-xs ring-2 ring-white">
+                    <CheckCircle2 className="w-4 h-4" />
                   </span>
                 </div>
 
                 <div>
-                  <h3 className="font-black text-xl text-slate-900">{selectedSession.doctorName}</h3>
-                  <p className="text-sm text-emerald-700 font-bold">{selectedSession.doctorSpecialty}</p>
+                  <h3 className="font-bold text-xl text-slate-900 tracking-tight">{selectedSession.doctorName}</h3>
+                  <div className="flex items-center justify-center gap-1.5 text-sm text-emerald-800 font-semibold mt-1">
+                    <Stethoscope className="w-4 h-4 text-emerald-600" />
+                    <span>{selectedSession.doctorSpecialty}</span>
+                  </div>
                   {selectedSession.doctorQualification && (
-                    <p className="text-xs text-indigo-700 font-semibold mt-0.5">
-                      🎓 {selectedSession.doctorQualification}
-                    </p>
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-slate-600 font-medium mt-1">
+                      <GraduationCap className="w-4 h-4 text-slate-400" />
+                      <span>{selectedSession.doctorQualification}</span>
+                    </div>
                   )}
-                  <p className="text-xs text-slate-500 mt-1">
-                    🏥 {hospital?.name || 'City Care Hospital'} • {selectedSession.doctorRoomNumber}
+                  <p className="text-xs text-slate-500 mt-2 flex items-center justify-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{hospital?.name || 'City Care Hospital'}</span>
+                    <span className="text-slate-300">•</span>
+                    <DoorClosed className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{selectedSession.doctorRoomNumber}</span>
                   </p>
                 </div>
 
                 <button
                   onClick={() => speakText(`${selectedSession.doctorName}. ${selectedSession.doctorSpecialty}. ${selectedSession.doctorRoomNumber}.`)}
-                  className="inline-flex items-center space-x-2 text-xs md:text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-full font-semibold transition cursor-pointer"
+                  className="inline-flex items-center space-x-2 text-xs md:text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl font-semibold transition cursor-pointer"
                 >
                   <Volume2 className="w-4 h-4 text-emerald-600" />
                   <span>Listen to Doctor Info</span>
@@ -940,7 +980,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
               {/* Right Column on Laptop (7 cols): Live OPD Status & Input Form */}
               <div className="lg:col-span-7 space-y-4">
                 {/* Dark Live OPD Status Box */}
-                <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-lg space-y-4 border border-slate-800">
+                <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-md space-y-4 border border-slate-800">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
@@ -951,21 +991,21 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
                   {/* 3 Stats Boxes */}
                   <div className="grid grid-cols-3 gap-3 text-center">
-                    <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700">
+                    <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/80">
                       <span className="text-[10px] md:text-xs text-slate-400 block">{t.currentToken}</span>
-                      <span className="text-xl md:text-2xl font-black text-emerald-400">
+                      <span className="text-xl md:text-2xl font-bold font-mono text-emerald-400">
                         {selectedSession.currentServingToken ? `#${selectedSession.currentServingToken}` : '—'}
                       </span>
                     </div>
-                    <div className="bg-amber-950/60 p-3 rounded-2xl border border-amber-600/40">
+                    <div className="bg-amber-950/40 p-3 rounded-xl border border-amber-600/30">
                       <span className="text-[10px] md:text-xs text-amber-300 block">{t.nextAvailableToken}</span>
-                      <span className="text-xl md:text-2xl font-black text-amber-400">
+                      <span className="text-xl md:text-2xl font-bold font-mono text-amber-400">
                         #{selectedSession.nextTokenSequence}
                       </span>
                     </div>
-                    <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700">
+                    <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/80">
                       <span className="text-[10px] md:text-xs text-slate-400 block">{t.peopleWaiting}</span>
-                      <span className="text-xl md:text-2xl font-black text-white">
+                      <span className="text-xl md:text-2xl font-bold font-mono text-white">
                         {selectedSession.waitingCount}
                       </span>
                     </div>
@@ -974,14 +1014,14 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   {/* Walk-in notice banner */}
                   {selectedSession.totalWalkinCount > 0 ? (
                     <div className="bg-blue-950/70 border border-blue-800/60 rounded-xl p-3 text-xs md:text-sm text-blue-200 flex items-center space-x-2.5">
-                      <span className="text-lg">🎟️</span>
+                      <Ticket className="w-4 h-4 text-blue-300 flex-shrink-0" />
                       <span>
                         {selectedSession.totalWalkinCount} Reception Walk-In Patient(s) registered ahead at front desk
                       </span>
                     </div>
                   ) : (
                     <div className="bg-emerald-950/70 border border-emerald-800/60 rounded-xl p-3 text-xs md:text-sm text-emerald-200 flex items-center space-x-2.5">
-                      <span className="text-lg">⚡</span>
+                      <Sparkles className="w-4 h-4 text-emerald-300 flex-shrink-0" />
                       <span>
                         No reception queue waiting • Direct entry when turn is called
                       </span>
@@ -1152,11 +1192,12 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         </span>
                       </p>
                     ) : (
-                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 my-2 text-center text-xs text-amber-950">
-                        <p className="font-black text-amber-900">
-                          ⚠️ {lang === 'HI' ? 'यह टोकन समाप्त (Expire) हो चुका है' : 'This Token Has Expired'}
+                      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 my-2 text-center text-xs text-amber-950">
+                        <p className="font-bold text-amber-900 flex items-center justify-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                          <span>{lang === 'HI' ? 'यह टोकन समाप्त (Expire) हो चुका है' : 'This Token Has Expired'}</span>
                         </p>
-                        <p className="text-[11px] text-amber-800 mt-0.5">
+                        <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
                           {lang === 'HI'
                             ? `यह टोकन ${activeToken.sessionDate || 'पिछली तारीख'} के ओपीडी सत्र का था। आज डॉक्टर को दिखाने के लिए नया टोकन बुक करें।`
                             : `This token was valid for the session on ${activeToken.sessionDate || 'a previous date'}. OPD tokens expire automatically at the end of the day.`}
@@ -1168,36 +1209,44 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">Doctor:</span>
                         <div className="text-right">
-                          <span className="font-bold text-slate-800">{activeToken.doctorName}</span>
+                          <span className="font-bold text-slate-900">{activeToken.doctorName}</span>
                           {activeToken.doctorQualification && (
-                            <span className="block text-[11px] text-indigo-700 font-semibold">
-                              🎓 {activeToken.doctorQualification}
+                            <span className="flex items-center justify-end gap-1 text-[11px] text-slate-600 font-medium mt-0.5">
+                              <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{activeToken.doctorQualification}</span>
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">Room:</span>
-                        <span className="font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                          {activeToken.doctorRoomNumber}
+                        <span className="font-semibold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200 text-xs flex items-center gap-1">
+                          <DoorClosed className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{activeToken.doctorRoomNumber}</span>
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">Serving Now:</span>
-                        <span className="font-bold text-slate-800">
+                        <span className="font-bold font-mono text-slate-900">
                           {activeToken.currentServingToken ? `#${activeToken.currentServingToken}` : 'Starting Soon'}
                         </span>
                       </div>
                       {activeToken.patientName && (
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 font-medium">Patient:</span>
-                          <span className="font-bold text-slate-800 truncate max-w-[200px] text-right">👤 {activeToken.patientName}</span>
+                          <span className="font-bold text-slate-800 truncate max-w-[200px] text-right flex items-center justify-end gap-1.5">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{activeToken.patientName}</span>
+                          </span>
                         </div>
                       )}
                       {activeToken.patientLocation && (
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500 font-medium">Location:</span>
-                          <span className="font-semibold text-emerald-700 truncate max-w-[200px] text-right">📍 {activeToken.patientLocation}</span>
+                          <span className="font-semibold text-emerald-800 truncate max-w-[200px] text-right flex items-center justify-end gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{activeToken.patientLocation}</span>
+                          </span>
                         </div>
                       )}
                     </div>
@@ -1210,10 +1259,11 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                             setActiveToken(null);
                             setViewState('DOCTOR_LIST');
                           }}
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-xl transition text-base flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99]"
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-xs hover:shadow-md transition text-sm flex items-center justify-center space-x-2 cursor-pointer active:scale-[0.99] group"
                         >
-                          <Ticket className="w-5 h-5" />
-                          <span>{lang === 'HI' ? 'आज का नया टोकन बुक करें ➔' : "Book Today's Fresh Token ➔"}</span>
+                          <Ticket className="w-4 h-4" />
+                          <span>{lang === 'HI' ? 'आज का नया टोकन बुक करें' : "Book Today's Fresh Token"}</span>
+                          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </button>
                       </div>
                     )}
@@ -1324,10 +1374,11 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         setLookupTokensList([]);
                         setViewState('MY_TOKEN');
                       }}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-2xl transition text-sm flex items-center justify-center space-x-2 cursor-pointer shadow-md active:scale-[0.99]"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition text-sm flex items-center justify-center space-x-2 cursor-pointer shadow-xs active:scale-[0.99] group"
                     >
                       <Search className="w-4 h-4" />
-                      <span>{lang === 'HI' ? 'अन्य मोबाइल नंबर से टोकन खोजें ➔' : 'Search Token With Another Phone Number ➔'}</span>
+                      <span>{lang === 'HI' ? 'अन्य मोबाइल नंबर से टोकन खोजें' : 'Search Token With Another Phone Number'}</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </button>
 
                     <button
@@ -1341,7 +1392,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         setActiveToken(null);
                         setViewState('HOME');
                       }}
-                      className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-2xl transition text-sm flex items-center justify-center space-x-2 cursor-pointer border border-slate-300 shadow-2xs active:scale-[0.99]"
+                      className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-xl transition text-sm flex items-center justify-center space-x-2 cursor-pointer border border-slate-300 shadow-2xs active:scale-[0.99]"
                     >
                       <RefreshCw className="w-4 h-4 text-slate-500" />
                       <span>{t.changeDoc}</span>
@@ -1350,8 +1401,8 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </>
               ) : (
                 /* Token Lookup Form */
-                <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-5 text-center">
-                  <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto">
+                <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-xs border border-slate-200 space-y-5 text-center">
+                  <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center mx-auto">
                     <Ticket className="w-7 h-7" />
                   </div>
                   <div>
@@ -1366,7 +1417,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         })}
                       </span>
                     </div>
-                    <h3 className="font-black text-lg text-slate-900">
+                    <h3 className="font-bold text-lg text-slate-900 tracking-tight">
                       {lang === 'HI' ? 'आज का ओपीडी टोकन खोजें' : "Search Today's OPD Token"}
                     </h3>
                     <p className="text-xs md:text-sm text-slate-500 mt-1">
@@ -1377,17 +1428,18 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   </div>
 
                   {/* Clean CTA to Book Fresh Token if user doesn't have one */}
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center space-y-2">
-                    <p className="text-xs text-emerald-950 font-bold">
+                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 text-center space-y-2">
+                    <p className="text-xs text-emerald-950 font-semibold">
                       {lang === 'HI' ? 'आज के लिए अभी तक कोई टोकन बुक नहीं किया?' : "Haven't booked a token for today yet?"}
                     </p>
                     <button
                       type="button"
                       onClick={() => setViewState('DOCTOR_LIST')}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer shadow-xs transition active:scale-95 flex items-center justify-center space-x-1.5"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer shadow-xs transition active:scale-95 flex items-center justify-center space-x-2 group"
                     >
                       <Ticket className="w-4 h-4" />
-                      <span>{lang === 'HI' ? 'डॉक्टर चुनें और आज का टोकन बुक करें ➔' : "View Doctors & Book Today's Token ➔"}</span>
+                      <span>{lang === 'HI' ? 'डॉक्टर चुनें और आज का टोकन बुक करें' : "View Doctors & Book Today's Token"}</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </button>
                   </div>
 
@@ -1397,16 +1449,19 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       placeholder={lang === 'HI' ? 'आज के टोकन के लिए 10 अंकों का मोबाइल नंबर डालें' : "Enter 10-Digit Mobile Number for Today's Token"}
                       value={lookupQuery}
                       onChange={(e) => setLookupQuery(e.target.value)}
-                      className="w-full text-sm font-semibold border border-slate-300 rounded-2xl px-4 py-3.5 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none text-center shadow-xs"
+                      className="w-full text-sm font-semibold border border-slate-300 rounded-xl px-4 py-3.5 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 outline-none text-center shadow-xs"
                     />
                     <button
                       type="submit"
                       disabled={lookupLoading}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3.5 rounded-2xl transition text-sm cursor-pointer shadow-md disabled:opacity-50"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition text-sm cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 group"
                     >
-                      {lookupLoading
-                        ? (lang === 'HI' ? 'टोकन खोज रहे हैं...' : 'Searching Today\'s Token...')
-                        : (lang === 'HI' ? 'आज का टोकन खोजें ➔' : 'Find Today\'s Token ➔')}
+                      <span>
+                        {lookupLoading
+                          ? (lang === 'HI' ? 'टोकन खोज रहे हैं...' : 'Searching Today\'s Token...')
+                          : (lang === 'HI' ? 'आज का टोकन खोजें' : "Find Today's Token")}
+                      </span>
+                      {!lookupLoading && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                     </button>
                   </form>
 
@@ -1427,19 +1482,20 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                             localStorage.setItem('opd_patient_token_ref', t.bookingReference);
                             localStorage.removeItem('citycare_patient_token_ref');
                           }}
-                          className="p-3 rounded-2xl border border-slate-200 hover:border-emerald-500 bg-slate-50/50 hover:bg-white cursor-pointer transition flex items-center justify-between"
+                          className="p-3 rounded-xl border border-slate-200 hover:border-emerald-500 bg-slate-50/50 hover:bg-white cursor-pointer transition flex items-center justify-between"
                         >
                           <div className="flex items-center space-x-3">
-                            <span className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 font-black flex items-center justify-center text-sm">
+                            <span className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 font-bold font-mono flex items-center justify-center text-sm">
                               #{t.tokenNumber}
                             </span>
                             <div>
-                              <p className="font-extrabold text-sm text-slate-900">{t.patientName || 'Online Booking'}</p>
+                              <p className="font-bold text-sm text-slate-900">{t.patientName || 'Online Booking'}</p>
                               <p className="text-xs text-slate-500">{t.doctorName} • {t.doctorRoomNumber}</p>
                             </div>
                           </div>
-                          <span className="text-xs font-bold text-emerald-600 hover:underline">
-                            Open Turn ➔
+                          <span className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1">
+                            <span>Open Turn</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
                           </span>
                         </div>
                       ))}
@@ -1461,34 +1517,41 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sessions.map((s) => (
-                  <div key={s.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between space-y-4">
+                  <div key={s.id} className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/90 flex flex-col justify-between space-y-4 hover:border-emerald-500 hover:shadow-md transition-all duration-200">
                     <div className="flex items-center justify-between">
                       <div>
                         <h4 className="font-bold text-base text-slate-900">{s.doctorName}</h4>
-                        <p className="text-xs text-emerald-700 font-semibold">{s.doctorSpecialty}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-semibold mt-0.5">
+                          <Stethoscope className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                          <span>{s.doctorSpecialty}</span>
+                        </div>
                         {s.doctorQualification && (
-                          <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">🎓 {s.doctorQualification}</p>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium mt-0.5">
+                            <GraduationCap className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            <span>{s.doctorQualification}</span>
+                          </div>
                         )}
                       </div>
-                      <span className="text-xs font-bold bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-200">
-                        {s.doctorRoomNumber}
+                      <span className="text-xs font-semibold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-1">
+                        <DoorClosed className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{s.doctorRoomNumber}</span>
                       </span>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="bg-slate-50 p-2.5 rounded-xl">
-                        <span className="text-[10px] text-slate-400 block">Serving</span>
-                        <span className="font-bold text-slate-800 text-sm">
+                      <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Serving</span>
+                        <span className="font-bold font-mono text-slate-900 text-sm">
                           {s.currentServingToken ? `#${s.currentServingToken}` : '—'}
                         </span>
                       </div>
-                      <div className="bg-slate-50 p-2.5 rounded-xl">
-                        <span className="text-[10px] text-slate-400 block">Next</span>
-                        <span className="font-bold text-amber-700 text-sm">#{s.nextTokenSequence}</span>
+                      <div className="bg-amber-50/50 p-2.5 rounded-xl border border-amber-100">
+                        <span className="text-[10px] text-amber-700 block uppercase font-bold tracking-wider">Next</span>
+                        <span className="font-bold font-mono text-amber-800 text-sm">#{s.nextTokenSequence}</span>
                       </div>
-                      <div className="bg-slate-50 p-2.5 rounded-xl">
-                        <span className="text-[10px] text-slate-400 block">Waiting</span>
-                        <span className="font-bold text-slate-800 text-sm">{s.waitingCount}</span>
+                      <div className="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100">
+                        <span className="text-[10px] text-emerald-700 block uppercase font-bold tracking-wider">Waiting</span>
+                        <span className="font-bold font-mono text-emerald-800 text-sm">{s.waitingCount}</span>
                       </div>
                     </div>
                   </div>
