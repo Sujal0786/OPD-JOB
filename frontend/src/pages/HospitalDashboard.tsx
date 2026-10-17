@@ -78,6 +78,10 @@ interface ArrivalAlert {
 export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, currentUser, onOpenPatientPortal }) => {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'QUEUE_DESK' | 'DOCTOR_ROOM' | 'DOCTORS_ROSTER' | 'QR_KIOSK'>('QUEUE_DESK');
+  const activeTabRef = useRef<'QUEUE_DESK' | 'DOCTOR_ROOM' | 'DOCTORS_ROSTER' | 'QR_KIOSK'>('QUEUE_DESK');
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   // Queue and Session state
   const [sessions, setSessions] = useState<OpdSession[]>([]);
@@ -309,23 +313,6 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   const handleShiftChange = (newShift: 'MORNING' | 'EVENING') => {
     setActiveShift(newShift);
     activeShiftRef.current = newShift;
-    const targetDocId = selectedDoctorIdRef.current || (doctors.length > 0 ? doctors[0].id : '');
-    if (targetDocId) {
-      const docSessions = sessions.filter(s => s.doctorId === targetDocId);
-      const shiftSession = newShift === 'EVENING'
-        ? (docSessions.find(s => isEveningSession(s)) || null)
-        : (docSessions.find(s => isMorningSession(s)) || null);
-
-      if (shiftSession) {
-        setSelectedSessionId(shiftSession.id);
-        selectedSessionIdRef.current = shiftSession.id;
-        loadQueueBoard(shiftSession.id);
-      } else {
-        setSelectedSessionId('');
-        selectedSessionIdRef.current = '';
-        setQueueBoard(null);
-      }
-    }
   };
 
   // 1. Initial Load: Fetch Sessions for Selected Date and Doctors
@@ -337,50 +324,22 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     loadDoctors();
   }, [currentUser.hospitalId]);
 
+  // Pure session list fetcher (zero selection mutation)
+  const fetchSessionsOnly = async (targetDate: string = selectedDate) => {
+    try {
+      const data = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
+      setSessions(data);
+    } catch (err: unknown) {
+      console.error('Background sessions fetch failed:', err);
+    }
+  };
+
   const loadSessions = async (targetDate: string = selectedDate, showSpinner: boolean = false) => {
     try {
       if (showSpinner) setLoading(true);
       setError(null);
       const data = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
       setSessions(data);
-
-      let currentDocId = selectedDoctorIdRef.current;
-      if (!currentDocId) {
-        if (doctors.length > 0) {
-          currentDocId = doctors[0].id;
-        } else if (data.length > 0 && data[0].doctorId) {
-          currentDocId = data[0].doctorId;
-        }
-        if (currentDocId) {
-          setSelectedDoctorId(currentDocId);
-          selectedDoctorIdRef.current = currentDocId;
-        }
-      }
-
-      if (currentDocId) {
-        const docSessions = data.filter(s => s.doctorId === currentDocId);
-        const currentShift = activeShiftRef.current;
-        const shiftSession = currentShift === 'EVENING'
-          ? (docSessions.find(s => isEveningSession(s)) || null)
-          : (docSessions.find(s => isMorningSession(s)) || null);
-
-        if (shiftSession) {
-          if (selectedSessionIdRef.current !== shiftSession.id) {
-            setSelectedSessionId(shiftSession.id);
-            selectedSessionIdRef.current = shiftSession.id;
-          }
-        } else {
-          if (selectedSessionIdRef.current !== '') {
-            setSelectedSessionId('');
-            selectedSessionIdRef.current = '';
-            setQueueBoard(null);
-          }
-        }
-      } else {
-        setSelectedSessionId('');
-        selectedSessionIdRef.current = '';
-        setQueueBoard(null);
-      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load sessions');
     } finally {
@@ -418,7 +377,38 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     }
   };
 
-  // 2. Fetch Queue Board on session change & setup real-time listeners (SSE, Cross-Tab Broadcast, Tab Focus, Polling)
+  // 2. Declarative Unidirectional Sync via useEffect:
+  // Whenever selectedDoctorId, activeShift, or sessions change, derive selectedSessionId
+  useEffect(() => {
+    if (!selectedDoctorId) {
+      if (doctors.length > 0) {
+        const firstDocId = doctors[0].id;
+        setSelectedDoctorId(firstDocId);
+        selectedDoctorIdRef.current = firstDocId;
+      }
+      return;
+    }
+
+    const docSessions = sessions.filter(s => s.doctorId === selectedDoctorId);
+    const shiftSession = activeShift === 'EVENING'
+      ? (docSessions.find(s => isEveningSession(s)) || null)
+      : (docSessions.find(s => isMorningSession(s)) || null);
+
+    if (shiftSession) {
+      if (selectedSessionIdRef.current !== shiftSession.id) {
+        setSelectedSessionId(shiftSession.id);
+        selectedSessionIdRef.current = shiftSession.id;
+      }
+    } else {
+      if (selectedSessionIdRef.current !== '') {
+        setSelectedSessionId('');
+        selectedSessionIdRef.current = '';
+        setQueueBoard(null);
+      }
+    }
+  }, [selectedDoctorId, activeShift, sessions, doctors]);
+
+  // 3. Fetch Queue Board on session change & setup real-time listeners (SSE, Cross-Tab Broadcast, Tab Focus, Polling)
   useEffect(() => {
     if (!selectedSessionId) return;
     loadQueueBoard(selectedSessionId);
@@ -436,13 +426,15 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     sseRef.current = sse;
 
     const refreshActiveData = () => {
+      // 1. Refresh queue board for the active session (without spinner)
       if (selectedSessionIdRef.current) {
         loadQueueBoard(selectedSessionIdRef.current, false);
       }
-      loadSessions(selectedDate, false);
-      const activeDocId = selectedDoctorIdRef.current;
-      if (activeDocId) {
-        loadDoctorRoomBoard(activeDocId, selectedDate, undefined, false);
+      // 2. Pure background sync of sessions (zero selection mutation)
+      fetchSessionsOnly(selectedDate);
+      // 3. Only refresh Doctor Room Board if user is currently inside DOCTOR_ROOM tab
+      if (activeTabRef.current === 'DOCTOR_ROOM' && selectedDoctorIdRef.current) {
+        loadDoctorRoomBoard(selectedDoctorIdRef.current, selectedDate, undefined, false);
       }
     };
 
@@ -595,7 +587,6 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
       // If explicit targetSessionId provided
       if (targetSessionId) {
-        setSelectedSessionId(targetSessionId);
         const board = await api.getQueueBoard(currentUser.hospitalId, targetSessionId);
         if (selectedDoctorIdRef.current === docId) {
           setDoctorBoard(board);
@@ -609,11 +600,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
       if (docSessions.length > 0) {
         // Match existing selectedSessionId, or first OPEN, or latest session
-        const active = docSessions.find(s => s.id === selectedSessionId)
+        const active = docSessions.find(s => s.id === selectedSessionIdRef.current)
           || docSessions.find(s => s.status === 'OPEN')
           || docSessions[docSessions.length - 1];
 
-        setSelectedSessionId(active.id);
         const board = await api.getQueueBoard(currentUser.hospitalId, active.id);
         if (selectedDoctorIdRef.current === docId) {
           setDoctorBoard(board);
@@ -1059,9 +1049,11 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   setActiveTab('QUEUE_DESK');
                   const currentDocId = selectedDoctorIdRef.current;
                   if (currentDocId) {
-                    const matchSession = sessions.find(s => s.doctorId === currentDocId);
+                    const matchSession = getDoctorSessionForShift(currentDocId, activeShiftRef.current);
                     if (matchSession) {
                       setSelectedSessionId(matchSession.id);
+                      selectedSessionIdRef.current = matchSession.id;
+                      loadQueueBoard(matchSession.id);
                     }
                   }
                 }}
@@ -2651,7 +2643,21 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       {t.sessionId !== selectedSessionId && (
                         <button
                           onClick={() => {
+                            const sess = sessions.find(s => s.id === t.sessionId);
+                            if (sess) {
+                              setSelectedDoctorId(sess.doctorId);
+                              selectedDoctorIdRef.current = sess.doctorId;
+                              if (isEveningSession(sess)) {
+                                setActiveShift('EVENING');
+                                activeShiftRef.current = 'EVENING';
+                              } else {
+                                setActiveShift('MORNING');
+                                activeShiftRef.current = 'MORNING';
+                              }
+                            }
                             setSelectedSessionId(t.sessionId);
+                            selectedSessionIdRef.current = t.sessionId;
+                            loadQueueBoard(t.sessionId);
                             setShowSearchModal(false);
                           }}
                           className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer border border-slate-200"
@@ -2663,8 +2669,22 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       {t.status === 'WAITING' && (
                         <button
                           onClick={() => {
+                            const sess = sessions.find(s => s.id === t.sessionId);
+                            if (sess) {
+                              setSelectedDoctorId(sess.doctorId);
+                              selectedDoctorIdRef.current = sess.doctorId;
+                              if (isEveningSession(sess)) {
+                                setActiveShift('EVENING');
+                                activeShiftRef.current = 'EVENING';
+                              } else {
+                                setActiveShift('MORNING');
+                                activeShiftRef.current = 'MORNING';
+                              }
+                            }
                             if (t.sessionId !== selectedSessionId) {
                               setSelectedSessionId(t.sessionId);
+                              selectedSessionIdRef.current = t.sessionId;
+                              loadQueueBoard(t.sessionId);
                             }
                             handleCallToken(t.tokenNumber, t.doctorName, t.doctorRoomNumber);
                             setShowSearchModal(false);
