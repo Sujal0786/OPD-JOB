@@ -6,6 +6,7 @@ import {
   HospitalRegistrationPayload,
   LoginResponse,
   OpdSession,
+  OpdSessionStatus,
   QueueBoard,
   TokenResponse,
   TokenStatus,

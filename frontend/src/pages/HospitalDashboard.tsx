@@ -115,6 +115,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   // Session Pause / Deactivation & Shift Scheduling State
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [sessionToPause, setSessionToPause] = useState<OpdSession | null>(null);
+  const [pauseReopenPreset, setPauseReopenPreset] = useState<'EVENING' | 'TOMORROW_MORNING' | '30_MIN' | 'CUSTOM'>('EVENING');
   const [customReopenTime, setCustomReopenTime] = useState('');
   const [pausingSession, setPausingSession] = useState(false);
 
@@ -1253,9 +1254,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                                 <span>Active</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 font-bold text-amber-800" title={getSessionReopenNote(s.id, s.sessionName)}>
+                              <span className="inline-flex items-center gap-1 font-bold text-amber-800" title={getSessionReopenNote(s.id) || undefined}>
                                 <PauseCircle className="w-3 h-3 text-amber-600" />
-                                <span className="truncate max-w-[110px]">{getSessionReopenNote(s.id, s.sessionName)}</span>
+                                <span className="truncate max-w-[110px]">{getSessionReopenNote(s.id) || 'Paused'}</span>
                               </span>
                             )}
                             <button
