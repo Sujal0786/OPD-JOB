@@ -28,7 +28,12 @@ import {
   Award,
   Sunrise,
   Sunset,
-  PauseCircle
+  PauseCircle,
+  HeartPulse,
+  Home,
+  Info,
+  X,
+  ExternalLink
 } from 'lucide-react';
 import { LanguageToggle } from '../components/LanguageToggle';
 
@@ -118,6 +123,23 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
     return Array.from(doctorMap.values());
   }, [sessions]);
+
+  // Live search query for doctor/specialty search bar
+  const [doctorSearchQuery, setDoctorSearchQuery] = useState('');
+  // Hospital Info modal toggle
+  const [showHospitalInfoModal, setShowHospitalInfoModal] = useState(false);
+
+  const filteredSessions = useMemo(() => {
+    if (!doctorSearchQuery.trim()) return displayedSessions;
+    const q = doctorSearchQuery.toLowerCase().trim();
+    return displayedSessions.filter(
+      (s) =>
+        s.doctorName?.toLowerCase().includes(q) ||
+        s.doctorSpecialty?.toLowerCase().includes(q) ||
+        s.doctorQualification?.toLowerCase().includes(q) ||
+        s.doctorRoomNumber?.toLowerCase().includes(q)
+    );
+  }, [displayedSessions, doctorSearchQuery]);
 
   // Patient Registration Details
   const [patientName, setPatientName] = useState('');
@@ -522,7 +544,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       checkLiveToken: 'Check live token status',
       viewQueue: 'View Queue',
       realtimeStatus: 'Real-time room status',
-      todayOpdDoctors: `TODAY'S OPD DOCTORS AT ${hospital?.name || 'HOSPITAL'}`,
+      todayOpdDoctors: 'Available Doctors',
       liveOpd: 'Live OPD',
       chooseDoctorTitle: 'Choose Doctor For Token',
       tapToBookNotice: 'Select an available doctor below to book your consultation:',
@@ -561,7 +583,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       checkLiveToken: 'टोकन का लाइव स्टेटस देखें',
       viewQueue: 'कतार देखें',
       realtimeStatus: 'कमरे की लाइव स्थिति',
-      todayOpdDoctors: `आज के ओपीडी डॉक्टर - ${hospital?.name || 'अस्पताल'}`,
+      todayOpdDoctors: 'उपलब्ध डॉक्टर्स',
       liveOpd: 'लाइव ओपीडी',
       chooseDoctorTitle: 'टोकन के लिए डॉक्टर चुनें',
       tapToBookNotice: 'परामर्श के लिए नीचे उपलब्ध डॉक्टर का चयन करें:',
@@ -594,9 +616,12 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
       {/* ========================================================================= */}
       {/* FULL-WIDTH RESPONSIVE NAVBAR PANEL (LAPTOP EDGE-TO-EDGE)                  */}
       {/* ========================================================================= */}
-      <header className="bg-emerald-700 text-white shadow-md w-full sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+      {/* ========================================================================= */}
+      {/* FULL-WIDTH RESPONSIVE NAVBAR PANEL (LAPTOP EDGE-TO-EDGE)                  */}
+      {/* ========================================================================= */}
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs w-full sticky top-0 z-30 transition-all">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 flex-1 min-w-0 mr-2 sm:mr-4">
             {viewState !== 'HOME' && (
               <button
                 onClick={() => {
@@ -610,64 +635,73 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     setViewState('HOME');
                   }
                 }}
-                className="p-1.5 -ml-1.5 text-white hover:bg-emerald-800 rounded-xl transition cursor-pointer"
+                className="p-1.5 -ml-1 text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer flex-shrink-0"
                 title="Back"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
             )}
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-xs flex-shrink-0">
-              <Building2 className="w-6 h-6 text-emerald-100" />
+
+            {/* Medical Heart Emblem */}
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200/90 text-emerald-600 flex items-center justify-center shadow-2xs flex-shrink-0">
+              <HeartPulse className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="font-extrabold text-base md:text-xl leading-tight tracking-tight">
-                  {hospital ? hospital.name : 'Hospital OPD'}
-                </h1>
-                <span className="bg-emerald-800/80 text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border border-emerald-600/50">
-                  OPD LIVE
-                </span>
-              </div>
-              <p className="text-xs text-emerald-100 font-medium hidden sm:block">
-                {t.digitalPortal}
+
+            <div className="min-w-0 flex-1">
+              <h1 className="font-extrabold text-sm sm:text-base md:text-lg leading-snug tracking-tight text-slate-900 line-clamp-2 sm:line-clamp-none break-words">
+                {hospital ? hospital.name : 'Hospital OPD'}
+              </h1>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium truncate hidden sm:block">
+                {hospital?.address ? `${hospital.address} • ` : ''}{t.digitalPortal}
               </p>
             </div>
           </div>
 
           {/* Header Action Controls */}
-          <div className="flex items-center space-x-2 sm:space-x-2.5">
-            <LanguageToggle />
+          <div className="flex items-center space-x-1.5 sm:space-x-2">
+            <button
+              onClick={() => setShowHospitalInfoModal(true)}
+              className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition cursor-pointer border border-transparent hover:border-emerald-200/60"
+              title="Hospital Information"
+            >
+              <Info className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+
+            <LanguageToggle variant="light" />
 
             {currentUser && onDashboardClick && (
               <button
                 onClick={onDashboardClick}
-                className="bg-white text-emerald-900 hover:bg-emerald-50 text-xs md:text-sm font-black px-3.5 py-1.5 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-md border border-emerald-300"
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 text-xs sm:text-sm font-bold px-3 py-1.5 rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-2xs"
                 title="Return to Staff Dashboard"
               >
                 <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Dashboard ({currentUser.hospitalSlug || 'Staff'})</span>
+                <span className="hidden sm:inline">Dashboard ({currentUser.hospitalSlug || 'Staff'})</span>
+                <span className="sm:hidden">Staff</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Contact & Location Strip directly under navbar */}
-        <div className="bg-emerald-800/90 border-t border-emerald-600/40 px-4 sm:px-6 lg:px-8 py-2 text-xs text-emerald-100">
+        <div className="bg-slate-50/80 border-t border-slate-100 px-4 sm:px-6 lg:px-8 py-1.5 text-[11px] sm:text-xs text-slate-500">
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-y-1 gap-x-4">
             {hospital?.address && (
               <div className="flex items-center space-x-1.5">
-                <MapPin className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-                <span>{hospital.address}</span>
+                <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <span className="text-slate-600 truncate max-w-[280px] sm:max-w-none">{hospital.address}</span>
               </div>
             )}
             <div className="flex items-center space-x-1.5">
-              <Clock className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-              <span>08:00 AM - 08:00 PM</span>
+              <Clock className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+              <span className="text-slate-600">08:00 AM - 08:00 PM</span>
             </div>
             {hospital?.phone && (
               <div className="flex items-center space-x-1.5">
-                <Phone className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-                <span>{hospital.phone}</span>
+                <Phone className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <a href={`tel:${hospital.phone}`} className="text-slate-600 hover:text-emerald-700 font-medium">
+                  {hospital.phone}
+                </a>
               </div>
             )}
           </div>
@@ -689,144 +723,306 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
           {/* ========================================================================= */}
           {viewState === 'HOME' && (
             <>
-              {/* Top Banners Responsive Row (Laptop: 2-column or stacked) */}
-              <div>
-                {/* Hero Banner Card */}
-                <div className="bg-gradient-to-r from-emerald-50/70 to-teal-50/50 rounded-2xl p-4 sm:p-5 border border-emerald-100/90 flex flex-col justify-between shadow-xs">
-                  <div className="flex items-start justify-between">
-                    <div className="pr-3">
-                      <h2 className="text-base md:text-xl font-extrabold text-slate-900 leading-snug">
-                        {t.bookFromHomeTitle}
-                      </h2>
-                      <p className="text-xs md:text-sm text-slate-600 mt-1.5 leading-relaxed">
-                        {t.bookFromHomeSub}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => speakText(t.speechPrompt)}
-                      className="flex-shrink-0 bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs md:text-sm font-bold px-3 py-1.5 rounded-xl flex items-center space-x-1.5 transition shadow-xs cursor-pointer"
-                    >
-                      <Volume2 className="w-4 h-4 text-emerald-600" />
-                      <span>{t.listen}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* ===================================================================== */}
-              {/* THE 3 PRIMARY ACTION CARDS (Laptop: 3-column equal grid) */}
-              {/* ===================================================================== */}
-              <div>
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">
-                  Quick Actions
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                  {/* 1. Generate Token / View Doctors & Book */}
-                  <div
-                    onClick={() => setViewState('DOCTOR_LIST')}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white p-5 rounded-2xl shadow-md cursor-pointer transition flex items-center justify-between group active:scale-[0.99]"
-                  >
-                    <div className="flex items-center space-x-3.5">
-                      <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
-                        <Stethoscope className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-extrabold text-base md:text-lg leading-tight">
-                          {t.viewDocsAndBook}
-                        </h3>
-                        <p className="text-xs text-emerald-100 mt-1">
-                          {t.docsAvailable}
-                        </p>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-emerald-100 group-hover:translate-x-1 transition-transform" />
-                  </div>
-
-                  {/* 2. My Token / View Token */}
-                  <div
-                    onClick={() => setViewState('MY_TOKEN')}
-                    className="bg-white hover:bg-slate-50 border border-slate-200 p-5 rounded-2xl shadow-xs cursor-pointer transition flex items-center justify-between group"
-                  >
-                    <div className="flex items-center space-x-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-700 border border-teal-100 flex items-center justify-center flex-shrink-0">
-                        <Ticket className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-base text-slate-900">
-                          {t.myToken} {activeToken && isTokenActiveToday(activeToken) ? `(#${activeToken.tokenNumber})` : ''}
-                        </h4>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {activeToken && isTokenActiveToday(activeToken)
-                            ? (lang === 'HI' ? 'आज का लाइव टोकन देखें' : 'View your active live token')
-                            : t.checkLiveToken}
-                        </p>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                  </div>
-
-                  {/* 3. View Queue */}
-                  <div
-                    onClick={() => setViewState('VIEW_QUEUE')}
-                    className="bg-white hover:bg-slate-50 border border-slate-200 p-5 rounded-2xl shadow-xs cursor-pointer transition flex items-center justify-between group"
-                  >
-                    <div className="flex items-center space-x-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                        <Users className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-base text-slate-900">{t.viewQueue}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">{t.realtimeStatus}</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Cross-Device Token Lookup Banner */}
-              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-blue-50 border border-emerald-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-                <div className="flex items-center space-x-3.5 text-left w-full sm:w-auto">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
-                    <Search className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-sm text-slate-900 flex flex-wrap items-center gap-1.5">
-                      <span>{lang === 'HI' ? "आज का ओपीडी टोकन खोजें" : "Search Today's OPD Token"}</span>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
-                        {lang === 'HI' ? 'केवल आज के लिए' : "Today's Date Only"}
+              {/* Modern Hero Card (matches mockup) */}
+              <div className="bg-gradient-to-br from-emerald-50/90 via-teal-50/60 to-emerald-100/40 rounded-3xl p-4 sm:p-6 border border-emerald-200/70 shadow-xs relative overflow-hidden">
+                <div className="flex items-start justify-between relative z-10">
+                  <div className="pr-3">
+                    <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                      {lang === 'HI' ? 'अपना ओपीडी टोकन बुक करें' : 'Book Your OPD Token'}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
+                      {lang === 'HI' ? 'घर बैठे कतार में लगें, समय बचाएं' : 'Get in line, save time'}
+                    </p>
+                    {/* Heartbeat pulse wave SVG graphic */}
+                    <div className="mt-2.5 flex items-center space-x-2">
+                      <svg className="w-28 sm:w-36 h-5 text-emerald-500" viewBox="0 0 120 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M0 10 h25 l4 -8 l6 16 l6 -14 l5 10 l4 -4 h50" />
+                      </svg>
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Live OPD Active
                       </span>
-                    </h4>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      {lang === 'HI' ? 'अपना 10-अंकों का मोबाइल नंबर डालकर आज का लाइव टोकन देखें (पुराने टोकन समाप्त हो जाते हैं)' : 'Enter your 10-digit mobile number to track today\'s live token (valid for today\'s OPD only)'}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => speakText(t.speechPrompt)}
+                    className="flex-shrink-0 bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl flex items-center space-x-1.5 transition shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <Volume2 className="w-4 h-4 text-emerald-600" />
+                    <span>{t.listen}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Pill-shaped Live Search Bar with Instant Results Dropdown */}
+              <div className="relative z-20">
+                <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={doctorSearchQuery}
+                  onChange={(e) => setDoctorSearchQuery(e.target.value)}
+                  placeholder={lang === 'HI' ? "डॉक्टर, विभाग या कमरा नंबर खोजें..." : "Search doctor, department, or room..."}
+                  className="w-full pl-11 pr-10 py-3 bg-white border border-slate-200/90 rounded-2xl sm:rounded-full text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition shadow-xs"
+                />
+                {doctorSearchQuery && (
+                  <button
+                    onClick={() => setDoctorSearchQuery('')}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Instant Floating Search Results Panel */}
+                {doctorSearchQuery.trim().length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150 text-left">
+                    {/* Header with Results Count */}
+                    <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
+                      <span>
+                        {filteredSessions.length > 0 
+                          ? `${filteredSessions.length} doctor${filteredSessions.length > 1 ? 's' : ''} found`
+                          : (lang === 'HI' ? 'कोई डॉक्टर नहीं मिला' : 'No doctors found')}
+                      </span>
+                      <button
+                        onClick={() => setDoctorSearchQuery('')}
+                        className="text-xs text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer"
+                      >
+                        {lang === 'HI' ? 'बंद करें' : 'Close'}
+                      </button>
+                    </div>
+
+                    {/* Quick Token Lookup Helper if user typed phone or token number */}
+                    {/\d/.test(doctorSearchQuery) && (
+                      <div
+                        onClick={() => {
+                          const q = doctorSearchQuery.trim();
+                          setLookupQuery(q);
+                          setDoctorSearchQuery('');
+                          setViewState('MY_TOKEN');
+                        }}
+                        className="px-4 py-3 bg-amber-50/80 hover:bg-amber-100/80 border-b border-amber-200/60 cursor-pointer transition flex items-center justify-between"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <Ticket className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold text-amber-950">
+                              {lang === 'HI' ? `"${doctorSearchQuery}" के लिए लाइव टोकन खोजें` : `Search today's token for "${doctorSearchQuery}"`}
+                            </p>
+                            <p className="text-[10px] text-amber-700">Check live turn by mobile number or token ID</p>
+                          </div>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-amber-700" />
+                      </div>
+                    )}
+
+                    {/* Matching Doctor Results */}
+                    {filteredSessions.length > 0 ? (
+                      <div className="divide-y divide-slate-100">
+                        {filteredSessions.map((s) => (
+                          <div
+                            key={s.id}
+                            onClick={() => {
+                              if (s.status === 'OPEN') {
+                                setSelectedSession(s);
+                                setDoctorSearchQuery('');
+                                setViewState('CONFIRM_TOKEN');
+                              }
+                            }}
+                            className="p-3 sm:p-4 hover:bg-emerald-50/50 cursor-pointer transition flex items-center justify-between gap-3"
+                          >
+                            <div className="flex items-center space-x-3 min-w-0">
+                              <img
+                                src={s.doctorPhotoUrl || "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&auto=format&fit=crop&q=80"}
+                                alt={s.doctorName}
+                                className="w-11 h-11 rounded-xl object-cover ring-1 ring-slate-200 flex-shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <h4 className="font-bold text-sm text-slate-900 truncate">{s.doctorName}</h4>
+                                <p className="text-xs text-emerald-800 font-semibold truncate">{s.doctorSpecialty}</p>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                  <span>Room {s.doctorRoomNumber}</span>
+                                  <span>•</span>
+                                  <span className={s.status === 'OPEN' ? 'text-emerald-700 font-bold' : 'text-slate-400'}>
+                                    {s.status === 'OPEN' ? 'Available' : s.status}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSession(s);
+                                setDoctorSearchQuery('');
+                                setViewState('CONFIRM_TOKEN');
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-2xs transition flex-shrink-0 flex items-center space-x-1 cursor-pointer"
+                            >
+                              <span>Book</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center text-xs text-slate-500">
+                        <p className="font-semibold text-slate-700">No doctors found matching "{doctorSearchQuery}"</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Try searching by specialty (e.g. Cardiology, Orthopedic) or doctor name</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Modern 2x2 Feature Grid (Mobile: 2 cols, Desktop/Laptop: 4 cols) */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                {/* 1. My Tokens */}
+                <div
+                  onClick={() => setViewState('MY_TOKEN')}
+                  className="bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-amber-100/30 hover:from-amber-100/80 hover:to-orange-100/60 border border-amber-200/80 hover:border-amber-300 p-3.5 sm:p-4 rounded-2xl shadow-xs hover:shadow-md cursor-pointer transition flex flex-col justify-between group active:scale-[0.98]"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center shadow-xs">
+                      <Ticket className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      activeToken && isTokenActiveToday(activeToken)
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-amber-100/80 text-amber-800 border-amber-200'
+                    }`}>
+                      {activeToken && isTokenActiveToday(activeToken)
+                        ? `#${activeToken.tokenNumber} Active`
+                        : (lang === 'HI' ? 'कोई टोकन नहीं' : 'No active token')}
+                    </span>
+                  </div>
+                  <div className="mt-3 sm:mt-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-amber-900">
+                        {lang === 'HI' ? 'मेरे टोकन' : 'My Tokens'}
+                      </h3>
+                      <ArrowRight className="w-4 h-4 text-amber-500 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1">
+                      {lang === 'HI' ? 'बुक किए गए टोकन देखें' : 'View your booked tokens'}
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setViewState('MY_TOKEN')}
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs md:text-sm px-4 py-2.5 rounded-xl transition shadow-xs flex items-center justify-center space-x-2 cursor-pointer flex-shrink-0 active:scale-95 group"
+
+                {/* 2. Queue Status */}
+                <div
+                  onClick={() => setViewState('VIEW_QUEUE')}
+                  className="bg-gradient-to-br from-purple-50/90 via-indigo-50/50 to-purple-100/30 hover:from-purple-100/80 hover:to-indigo-100/60 border border-purple-200/80 hover:border-purple-300 p-3.5 sm:p-4 rounded-2xl shadow-xs hover:shadow-md cursor-pointer transition flex flex-col justify-between group active:scale-[0.98]"
                 >
-                  <Search className="w-4 h-4" />
-                  <span>{lang === 'HI' ? 'मोबाइल नंबर से खोजें' : "Search Today's Token"}</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                </button>
+                  <div className="flex items-start justify-between">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center shadow-xs">
+                      <Users className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-purple-100/80 text-purple-800 border-purple-200 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
+                      <span>Live</span>
+                    </span>
+                  </div>
+                  <div className="mt-3 sm:mt-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-purple-900">
+                        {lang === 'HI' ? 'कतार की स्थिति' : 'Queue Status'}
+                      </h3>
+                      <ArrowRight className="w-4 h-4 text-purple-500 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1">
+                      {lang === 'HI' ? 'लाइव वेटिंग लाइन देखें' : 'Check current waiting line'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. Doctors */}
+                <div
+                  onClick={() => setViewState('DOCTOR_LIST')}
+                  className="bg-gradient-to-br from-sky-50/90 via-cyan-50/50 to-sky-100/30 hover:from-sky-100/80 hover:to-cyan-100/60 border border-sky-200/80 hover:border-sky-300 p-3.5 sm:p-4 rounded-2xl shadow-xs hover:shadow-md cursor-pointer transition flex flex-col justify-between group active:scale-[0.98]"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-sky-500 to-teal-600 text-white flex items-center justify-center shadow-xs">
+                      <Stethoscope className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-sky-100/80 text-sky-800 border-sky-200">
+                      {displayedSessions.filter(s => s.status === 'OPEN').length} {lang === 'HI' ? 'उपलब्ध' : 'Available'}
+                    </span>
+                  </div>
+                  <div className="mt-3 sm:mt-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-sky-900">
+                        {lang === 'HI' ? 'डॉक्टर्स' : 'Doctors'}
+                      </h3>
+                      <ArrowRight className="w-4 h-4 text-sky-500 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1">
+                      {lang === 'HI' ? 'विशेषज्ञ डॉक्टर और बुकिंग' : 'Browse OPD specialists'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4. Hospital Info */}
+                <div
+                  onClick={() => setShowHospitalInfoModal(true)}
+                  className="bg-gradient-to-br from-emerald-50/90 via-teal-50/50 to-emerald-100/30 hover:from-emerald-100/80 hover:to-teal-100/60 border border-emerald-200/80 hover:border-emerald-300 p-3.5 sm:p-4 rounded-2xl shadow-xs hover:shadow-md cursor-pointer transition flex flex-col justify-between group active:scale-[0.98]"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-xs">
+                      <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-100/80 text-emerald-800 border-emerald-200">
+                      {lang === 'HI' ? 'खुला है' : 'Open'}
+                    </span>
+                  </div>
+                  <div className="mt-3 sm:mt-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-emerald-900">
+                        {lang === 'HI' ? 'अस्पताल जानकारी' : 'Hospital Info'}
+                      </h3>
+                      <ArrowRight className="w-4 h-4 text-emerald-500 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 line-clamp-1">
+                      {lang === 'HI' ? 'समय, पता और संपर्क' : 'Timings, location & contact'}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Doctors Catalog Grid on Homepage (Laptop: 3-column responsive grid) */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2">
-                  <h3 className="text-xs md:text-sm font-black text-slate-700 uppercase tracking-wider">
-                    {t.todayOpdDoctors}
-                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                      {t.todayOpdDoctors}
+                    </h3>
+                    <span className="text-xs font-bold text-slate-400">
+                      ({filteredSessions.length})
+                    </span>
+                  </div>
                   <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                     <span>{t.liveOpd}</span>
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {displayedSessions.map((s) => (
+                {filteredSessions.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-xs">
+                    <Search className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                    <p className="font-bold text-slate-700 text-sm">
+                      {lang === 'HI' ? 'कोई डॉक्टर नहीं मिला' : 'No doctors found matching your search'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">"{doctorSearchQuery}"</p>
+                    <button
+                      onClick={() => setDoctorSearchQuery('')}
+                      className="mt-3 text-xs font-bold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
+                    >
+                      {lang === 'HI' ? 'सभी डॉक्टर देखें' : 'View all doctors'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredSessions.map((s) => (
                     <div
                       key={s.id}
                       onClick={() => {
@@ -915,9 +1111,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     </div>
                   ))}
                 </div>
-              </div>
-            </>
-          )}
+              )}
+            </div>
+          </>
+        )}
 
           {/* ========================================================================= */}
           {/* SCREEN 2: CHOOSE DOCTOR FOR TOKEN (Responsive Grid) */}
@@ -938,13 +1135,48 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                 </button>
               </div>
 
-              {/* Grid: 1 col on mobile, 2 on tablet, 3 on laptop/desktop */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {displayedSessions.map((s) => (
-                  <div
-                    key={s.id}
-                    className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/90 flex flex-col justify-between space-y-4 hover:border-emerald-500 hover:shadow-md transition-all duration-200 group"
+              {/* Search Bar on DOCTOR_LIST screen */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={doctorSearchQuery}
+                  onChange={(e) => setDoctorSearchQuery(e.target.value)}
+                  placeholder={lang === 'HI' ? "डॉक्टर, विभाग या कमरा नंबर खोजें..." : "Search by doctor name, specialty, room..."}
+                  className="w-full pl-11 pr-10 py-3 bg-white border border-slate-200/90 rounded-2xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition shadow-xs"
+                />
+                {doctorSearchQuery && (
+                  <button
+                    onClick={() => setDoctorSearchQuery('')}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full cursor-pointer"
                   >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {filteredSessions.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 shadow-xs">
+                  <Search className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="font-bold text-slate-700 text-sm">
+                    {lang === 'HI' ? 'कोई डॉक्टर नहीं मिला' : 'No doctors found matching your search'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">"{doctorSearchQuery}"</p>
+                  <button
+                    onClick={() => setDoctorSearchQuery('')}
+                    className="mt-3 text-xs font-bold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
+                  >
+                    {lang === 'HI' ? 'सभी डॉक्टर देखें' : 'View all doctors'}
+                  </button>
+                </div>
+              ) : (
+                /* Grid: 1 col on mobile, 2 on tablet, 3 on laptop/desktop */
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {filteredSessions.map((s) => (
+                    <div
+                      key={s.id}
+                      className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/90 flex flex-col justify-between space-y-4 hover:border-emerald-500 hover:shadow-md transition-all duration-200 group"
+                    >
                     <div className="space-y-3.5">
                       <div className="flex items-start space-x-3.5">
                         <div className="relative flex-shrink-0">
@@ -1081,8 +1313,9 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
           {/* ========================================================================= */}
           {/* SCREEN 3: CONFIRM & BOOK TOKEN (Laptop: 2-column split layout) */}
@@ -1741,12 +1974,154 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         </main>
 
         {/* Global Patient Portal Footer */}
-        <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-auto">
+        <footer className="bg-white border-t border-slate-200 py-6 mb-16 md:mb-0 text-center text-xs text-slate-500 mt-auto">
           <div className="max-w-7xl mx-auto px-4">
             <p className="font-semibold text-slate-700">{hospital?.name || 'City Care Hospital'} • Digital OPD Remote Token Platform</p>
             <p className="text-[11px] text-slate-400 mt-1">Live queue updates synchronized with hospital consultation room</p>
           </div>
         </footer>
+
+        {/* ========================================================================= */}
+        {/* STICKY BOTTOM APP NAVIGATION BAR (Mobile App UI from Image 2)             */}
+        {/* ========================================================================= */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-3 py-1.5 flex items-center justify-around shadow-lg">
+          <button
+            onClick={() => setViewState('HOME')}
+            className={`flex flex-col items-center py-1 px-3 rounded-xl transition cursor-pointer ${
+              viewState === 'HOME'
+                ? 'text-emerald-700 font-extrabold'
+                : 'text-slate-400 hover:text-slate-600 font-medium'
+            }`}
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">{lang === 'HI' ? 'होम' : 'Home'}</span>
+          </button>
+
+          <button
+            onClick={() => setViewState('MY_TOKEN')}
+            className={`flex flex-col items-center py-1 px-3 rounded-xl transition cursor-pointer relative ${
+              viewState === 'MY_TOKEN'
+                ? 'text-emerald-700 font-extrabold'
+                : 'text-slate-400 hover:text-slate-600 font-medium'
+            }`}
+          >
+            <Ticket className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">{lang === 'HI' ? 'टोकन' : 'Tokens'}</span>
+            {activeToken && isTokenActiveToday(activeToken) && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1 right-3 animate-ping" />
+            )}
+          </button>
+
+          <button
+            onClick={() => setViewState('DOCTOR_LIST')}
+            className={`flex flex-col items-center py-1 px-3 rounded-xl transition cursor-pointer ${
+              viewState === 'DOCTOR_LIST'
+                ? 'text-emerald-700 font-extrabold'
+                : 'text-slate-400 hover:text-slate-600 font-medium'
+            }`}
+          >
+            <Stethoscope className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">{lang === 'HI' ? 'डॉक्टर' : 'Doctors'}</span>
+          </button>
+
+          <button
+            onClick={() => setViewState('VIEW_QUEUE')}
+            className={`flex flex-col items-center py-1 px-3 rounded-xl transition cursor-pointer ${
+              viewState === 'VIEW_QUEUE'
+                ? 'text-emerald-700 font-extrabold'
+                : 'text-slate-400 hover:text-slate-600 font-medium'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">{lang === 'HI' ? 'कतार' : 'Queue'}</span>
+          </button>
+        </nav>
+
+        {/* ========================================================================= */}
+        {/* HOSPITAL INFORMATION MODAL / SHEET                                        */}
+        {/* ========================================================================= */}
+        {showHospitalInfoModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="bg-gradient-to-r from-emerald-600 to-teal-700 px-6 py-5 text-white flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shadow-xs">
+                    <Building2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg leading-tight">
+                      {hospital ? hospital.name : 'Hospital Details'}
+                    </h3>
+                    <p className="text-xs text-emerald-100 mt-0.5">Verified Medical Institution</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowHospitalInfoModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-sm">
+                {hospital?.address && (
+                  <div className="flex items-start space-x-3">
+                    <MapPin className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-bold text-slate-900">Hospital Address</h4>
+                      <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{hospital.address}</p>
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent((hospital.name || '') + ' ' + (hospital.address || ''))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center space-x-1 text-xs text-emerald-600 hover:text-emerald-700 font-bold mt-1.5"
+                      >
+                        <span>Open in Google Maps</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-start space-x-3">
+                  <Clock className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-slate-900">OPD Timings</h4>
+                    <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                      Morning Shift: 08:00 AM - 01:00 PM<br />
+                      Evening Shift: 04:00 PM - 08:00 PM
+                    </p>
+                  </div>
+                </div>
+
+                {hospital?.phone && (
+                  <div className="flex items-start space-x-3">
+                    <Phone className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-bold text-slate-900">Helpline / Contact</h4>
+                      <a
+                        href={`tel:${hospital.phone}`}
+                        className="text-xs text-emerald-700 font-bold hover:underline block mt-0.5"
+                      >
+                        {hospital.phone}
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowHospitalInfoModal(false)}
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs py-2.5 rounded-xl transition cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };

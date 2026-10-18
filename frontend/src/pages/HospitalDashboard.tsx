@@ -1243,7 +1243,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 flex-1 space-y-5">
+      <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-3.5 sm:py-5 flex-1 space-y-4 sm:space-y-5">
         {error && (
           <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl flex items-center justify-between text-sm shadow-xs">
             <span className="font-medium">{error}</span>
@@ -1255,10 +1255,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         {/* TAB 1: QUEUE DESK (Reception / Multi-Doctor Operations)        */}
         {/* ------------------------------------------------------------- */}
         {activeTab === 'QUEUE_DESK' && (
-          <div className="space-y-5">
+          <div className="space-y-4 sm:space-y-5">
             {/* Doctor OPD Session Selection Bar & Period Filter */}
-            <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-sm border border-slate-200 space-y-3.5 sm:space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center space-x-2">
                     <Stethoscope className="w-4 h-4 text-emerald-600" />
@@ -1273,10 +1273,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   </p>
                 </div>
 
-                <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+                <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-0.5">
                   <button
                     onClick={handleOpenAddDoctor}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 cursor-pointer transition shadow-xs"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 cursor-pointer transition shadow-xs whitespace-nowrap flex-shrink-0"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span> Add Doctor</span>
@@ -1284,10 +1284,10 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
                   <button
                     onClick={() => setActiveTab('DOCTORS_ROSTER')}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 cursor-pointer transition border border-slate-200"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 cursor-pointer transition border border-slate-200 whitespace-nowrap flex-shrink-0"
                   >
                     <Users className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Doctor Directory</span>
+                    <span>Directory</span>
                   </button>
 
                   {/* Clean 7-Day Storage Button */}
@@ -1296,11 +1296,11 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       setCleanupResult(null);
                       setShowCleanupModal(true);
                     }}
-                    className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 hover:border-red-300 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 cursor-pointer transition shadow-2xs"
+                    className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 hover:border-red-300 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 cursor-pointer transition shadow-2xs whitespace-nowrap flex-shrink-0"
                     title="Purge OPD queue and token data older than 7 days to free hospital storage"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-red-600" />
-                    <span>Clear 7-Day Storage</span>
+                    <span>Clear Storage</span>
                   </button>
 
                   <button
@@ -1308,7 +1308,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       loadSessions(selectedDate);
                       if (selectedSessionId) loadQueueBoard(selectedSessionId);
                     }}
-                    className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                    className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition cursor-pointer flex-shrink-0"
                     title="Refresh Sessions"
                   >
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -1317,9 +1317,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               </div>
 
               {/* Period / Date Filter Toolbar & Shift Switcher */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-                  <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-100">
+                <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-0.5">
+                  <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => setSelectedDate(todayStr)}
@@ -1345,9 +1345,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   </div>
 
                   {/* Calendar Date Picker Input */}
-                  <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
+                  <div className="flex items-center space-x-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200 flex-shrink-0">
                     <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="text-xs font-bold text-slate-600">Select Date:</span>
+                    <span className="text-xs font-bold text-slate-600">Date:</span>
                     <input
                       type="date"
                       value={selectedDate}
@@ -1361,51 +1361,8 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     />
                   </div>
 
-                  {/* OPD Shift Switcher (Morning vs Evening vs Full Day) */}
-                  <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold">
-                    <button
-                      type="button"
-                      onClick={() => handleShiftChange('MORNING')}
-                      className={`px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
-                        activeShift === 'MORNING'
-                          ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                      title="Morning OPD Shift (9:00 AM to 2:00 PM)"
-                    >
-                      <Sunrise className="w-3.5 h-3.5" />
-                      <span>Morning OPD (9 AM - 2 PM)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleShiftChange('EVENING')}
-                      className={`px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
-                        activeShift === 'EVENING'
-                          ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                      title="Evening OPD Shift (5:00 PM to 7:00 PM)"
-                    >
-                      <Sunset className="w-3.5 h-3.5" />
-                      <span>Evening OPD (5 PM - 7 PM)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleShiftChange('FULL_DAY')}
-                      className={`px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
-                        activeShift === 'FULL_DAY'
-                          ? 'bg-purple-700 text-white shadow-xs font-extrabold'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                      title="Full Day Patient Queue (Combined Morning + Evening OPD)"
-                    >
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>Full Day History</span>
-                    </button>
-                  </div>
-
                   {selectedDate !== todayStr && (
-                    <div className="flex items-center space-x-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-xl text-xs font-bold">
+                    <div className="flex items-center space-x-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-xl text-xs font-bold flex-shrink-0">
                       <span>Historical View ({selectedDate})</span>
                       <button
                         onClick={() => setSelectedDate(todayStr)}
@@ -1417,21 +1374,72 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   )}
                 </div>
 
-                <div className="text-[11px] text-slate-400 font-medium">
-                  {selectedDate === todayStr ? (
-                    <span className="flex items-center space-x-1 text-emerald-600 font-semibold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <span>Real-time Live Sync</span>
-                    </span>
-                  ) : (
-                    <span>Historical Archive Mode</span>
-                  )}
+                {/* OPD Shift Switcher (Morning vs Evening vs Full Day) - Responsive 3-col on Mobile */}
+                <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center space-x-0 sm:space-x-1 gap-1 sm:gap-0 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold">
+                  <button
+                    type="button"
+                    onClick={() => handleShiftChange('MORNING')}
+                    className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg transition flex items-center justify-center space-x-1 sm:space-x-1.5 cursor-pointer text-center ${
+                      activeShift === 'MORNING'
+                        ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Morning OPD Shift (9:00 AM to 2:00 PM)"
+                  >
+                    <Sunrise className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="sm:hidden">Morning</span>
+                    <span className="hidden sm:inline">Morning OPD (9 AM - 2 PM)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShiftChange('EVENING')}
+                    className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg transition flex items-center justify-center space-x-1 sm:space-x-1.5 cursor-pointer text-center ${
+                      activeShift === 'EVENING'
+                        ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Evening OPD Shift (5:00 PM to 7:00 PM)"
+                  >
+                    <Sunset className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="sm:hidden">Evening</span>
+                    <span className="hidden sm:inline">Evening OPD (5 PM - 7 PM)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShiftChange('FULL_DAY')}
+                    className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg transition flex items-center justify-center space-x-1 sm:space-x-1.5 cursor-pointer text-center ${
+                      activeShift === 'FULL_DAY'
+                        ? 'bg-purple-700 text-white shadow-xs font-extrabold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Full Day Patient Queue (Combined Morning + Evening OPD)"
+                  >
+                    <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="sm:hidden">Full Day</span>
+                    <span className="hidden sm:inline">Full Day History</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Doctor Session Carousel / Cards - EXACTLY ONE CARD PER ACTIVE DOCTOR */}
+              <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium pt-1">
+                {selectedDate === todayStr ? (
+                  <span className="flex items-center space-x-1 text-emerald-600 font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Real-time Live Sync</span>
+                  </span>
+                ) : (
+                  <span>Historical Archive Mode</span>
+                )}
+
+                {/* Mobile doctor swipe helper */}
+                <span className="sm:hidden text-slate-400 font-medium">
+                  Swipe cards horizontally ↔
+                </span>
+              </div>
+
+              {/* Doctor Session Carousel / Cards - EXACTLY ONE CARD PER ACTIVE DOCTOR with mobile scroll snap */}
               {doctors.filter(d => d.active).length > 0 ? (
-                <div className="flex space-x-3 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+                <div className="flex space-x-3 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scroll-smooth no-scrollbar">
                   {doctors.filter(d => d.active).map((doc) => {
                     const s = getDoctorCurrentSession(doc.id, sessions);
                     const isDocEvening = s ? isEveningSession(s) : false;
@@ -1464,7 +1472,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                           setLatestArrival(null);
                           setError(null);
                         }}
-                        className={`flex-shrink-0 text-left p-4 rounded-2xl border-2 transition cursor-pointer min-w-[290px] w-72 sm:w-80 flex flex-col justify-between ${
+                        className={`flex-shrink-0 snap-start text-left p-3.5 sm:p-4 rounded-2xl border-2 transition cursor-pointer w-[86vw] max-w-[340px] sm:w-80 flex flex-col justify-between ${
                           isSelected
                             ? 'border-emerald-600 bg-emerald-50/70 shadow-md ring-2 ring-emerald-600/20'
                             : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white'
@@ -1472,18 +1480,18 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       >
                         <div>
                           <div className="flex items-center justify-between mb-1 gap-2">
-                            <span className="font-extrabold text-sm text-slate-900 truncate">{doc.name}</span>
-                            <span className="text-[11px] bg-white px-2.5 py-0.5 rounded-md border border-slate-200 font-bold text-emerald-700 shadow-2xs whitespace-nowrap flex-shrink-0">
+                            <span className="font-extrabold text-sm text-slate-900 truncate flex-1 min-w-0">{doc.name}</span>
+                            <span className="text-[11px] bg-white px-2 py-0.5 rounded-md border border-slate-200 font-bold text-emerald-700 shadow-2xs whitespace-nowrap flex-shrink-0">
                               {doc.roomNumber}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 truncate mb-3">{doc.specialty}</p>
+                          <p className="text-xs text-slate-500 truncate mb-2.5">{doc.specialty}</p>
 
                           {/* Direct Shift Switcher Segmented Control */}
                           {s ? (
                             <>
                               <div
-                                className="grid grid-cols-2 p-1 bg-slate-200/80 rounded-xl mb-3 gap-1 shadow-2xs border border-slate-300/60"
+                                className="grid grid-cols-2 p-1 bg-slate-200/80 rounded-xl mb-2.5 gap-1 shadow-2xs border border-slate-300/60"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <button
@@ -1515,7 +1523,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                               </div>
 
                               {/* Active Status & Take Break / Resume Row */}
-                              <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-200/70">
+                              <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-200/70">
                                 {s.status === 'OPEN' ? (
                                   <span className="inline-flex items-center gap-1.5 font-bold text-emerald-700 text-xs bg-emerald-100/80 border border-emerald-300/70 px-2.5 py-0.5 rounded-full">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -1545,7 +1553,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                               </div>
                             </>
                           ) : (
-                            <div className="flex items-center justify-between w-full py-1 mb-3 pb-2 border-b border-slate-200/60">
+                            <div className="flex items-center justify-between w-full py-1 mb-2.5 pb-2 border-b border-slate-200/60">
                               <span className="inline-flex items-center gap-1.5 font-bold text-slate-500 text-xs">
                                 <Clock className="w-3.5 h-3.5 text-slate-400" />
                                 <span>Morning OPD</span>
@@ -1565,7 +1573,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                               e.stopPropagation();
                               handleOpenEditDoctor(doc);
                             }}
-                            className="bg-white hover:bg-emerald-600 hover:text-white text-slate-700 border border-slate-300 hover:border-emerald-600 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center space-x-1 shadow-2xs transition cursor-pointer"
+                            className="bg-white hover:bg-emerald-600 hover:text-white text-slate-700 border border-slate-300 hover:border-emerald-600 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center space-x-1 shadow-2xs transition cursor-pointer flex-shrink-0"
                             title="Edit this doctor profile"
                           >
                             <Edit className="w-3 h-3 text-emerald-600" />
@@ -1589,11 +1597,11 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
             {/* Live Queue Board Grid - only displayed when sessions exist for selected date and not in Full Day History view */}
             {activeShift !== 'FULL_DAY' && queueBoard && sessions.length > 0 && selectedSessionId && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Left Column: Room Status & Bulk Walk-In Tool */}
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* Active Serving Card */}
-                  <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 text-center relative overflow-hidden">
+                  <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-200 text-center relative overflow-hidden">
                     <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 mb-2">
                       Currently Serving
                     </div>
@@ -1629,7 +1637,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   </div>
 
                   {/* WALK-IN PATIENTS MECHANISM */}
-                  <div className="bg-gradient-to-br from-white to-emerald-50/40 rounded-3xl p-6 shadow-sm border-2 border-emerald-500/30 space-y-4">
+                  <div className="bg-gradient-to-br from-white to-emerald-50/40 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm border-2 border-emerald-500/30 space-y-3.5 sm:space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-extrabold text-slate-900 text-base flex items-center space-x-2">
@@ -1678,7 +1686,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 </div>
 
                 {/* Right Column: Active Live Queue Roster (2 columns wide) */}
-                <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col">
+                <div className="lg:col-span-2 bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-200 flex flex-col">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
                     <div>
                       <div className="flex items-center space-x-2.5">

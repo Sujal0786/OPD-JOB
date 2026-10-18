@@ -3,6 +3,7 @@ import { Globe, Check } from 'lucide-react';
 
 export interface LanguageToggleProps {
   className?: string;
+  variant?: 'light' | 'dark';
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -28,7 +29,7 @@ function setGoogleTranslateCookie(langCode: string) {
   document.cookie = `googtrans=${cookieValue}; path=/;`;
 }
 
-export const LanguageToggle: React.FC<LanguageToggleProps> = ({ className = '' }) => {
+export const LanguageToggle: React.FC<LanguageToggleProps> = ({ className = '', variant = 'dark' }) => {
   const [currentLang, setCurrentLang] = useState<string>('en');
   const [isOpen, setIsOpen] = useState(false);
 
@@ -67,14 +68,18 @@ export const LanguageToggle: React.FC<LanguageToggleProps> = ({ className = '' }
   return (
     <div className={`relative inline-block text-left ${className}`}>
       <div className="flex items-center space-x-1">
-        {/* Primary 1-Tap Toggle Button (Always visible on mobile & desktop) */}
+        {/* Primary 1-Tap Toggle Button */}
         <button
           type="button"
           onClick={handleQuickToggle}
-          className="bg-emerald-800/90 hover:bg-emerald-900 active:scale-95 text-xs sm:text-sm font-bold text-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-emerald-600 transition flex items-center space-x-1.5 shadow-xs cursor-pointer flex-shrink-0"
+          className={`${
+            variant === 'light'
+              ? 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-800 border-slate-200 shadow-2xs'
+              : 'bg-emerald-800/90 hover:bg-emerald-900 text-white border-emerald-600 shadow-xs'
+          } active:scale-95 text-xs sm:text-sm font-bold px-2.5 sm:px-3 py-1.5 rounded-xl border transition flex items-center space-x-1.5 cursor-pointer flex-shrink-0`}
           title="Switch Language / भाषा बदलें"
         >
-          <Globe className="w-3.5 h-3.5 text-emerald-300 flex-shrink-0" />
+          <Globe className={`w-3.5 h-3.5 flex-shrink-0 ${variant === 'light' ? 'text-emerald-600' : 'text-emerald-300'}`} />
           <span>{currentLang === 'hi' ? 'English' : 'हिंदी'}</span>
         </button>
 
@@ -82,7 +87,11 @@ export const LanguageToggle: React.FC<LanguageToggleProps> = ({ className = '' }
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="bg-emerald-800/90 hover:bg-emerald-900 active:scale-95 text-xs font-bold text-emerald-200 px-2 py-1.5 sm:py-2 rounded-xl border border-emerald-600 transition flex items-center justify-center cursor-pointer shadow-xs flex-shrink-0"
+          className={`${
+            variant === 'light'
+              ? 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600 border-slate-200 shadow-2xs'
+              : 'bg-emerald-800/90 hover:bg-emerald-900 text-emerald-200 border-emerald-600 shadow-xs'
+          } active:scale-95 text-xs font-bold px-2 py-1.5 rounded-xl border transition flex items-center justify-center cursor-pointer flex-shrink-0`}
           title="More Indian Languages"
         >
           <span className="text-[10px]">▼</span>
