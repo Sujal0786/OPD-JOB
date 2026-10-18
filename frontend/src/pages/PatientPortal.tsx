@@ -25,7 +25,10 @@ import {
   GraduationCap,
   DoorClosed,
   AlertCircle,
-  Award
+  Award,
+  Sunrise,
+  Sunset,
+  PauseCircle
 } from 'lucide-react';
 import { LanguageToggle } from '../components/LanguageToggle';
 
@@ -48,35 +51,69 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [sessions, setSessions] = useState<OpdSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<OpdSession | null>(null);
 
-  // Deduplicate sessions so each doctor has EXACTLY 1 card showing current shift
-  const displayedSessions = useMemo(() => {
-    const currentHour = new Date().getHours();
-    const isEveningTime = currentHour >= 16; // 4:00 PM onwards
+  const isEveningSession = (s: { sessionName?: string; startTime?: string }) => {
+    const name = (s.sessionName || '').toUpperCase();
+    if (name.includes('EVENING') || name.includes('NIGHT')) return true;
+    if (name.includes('MORNING')) return false;
+    if (s.startTime) {
+      const hr = parseInt(s.startTime.split(':')[0], 10);
+      return hr >= 16;
+    }
+    return false;
+  };
 
+  const isMorningSession = (s: { sessionName?: string; startTime?: string }) => !isEveningSession(s);
+
+  // Authoritative current session per doctor: citizens see the current live reality without choosing shifts
+  const displayedSessions = useMemo(() => {
     const doctorMap = new Map<string, OpdSession>();
+    
+    // Group all sessions by doctor
+    const byDoctor = new Map<string, OpdSession[]>();
     sessions.forEach((s) => {
       const docKey = s.doctorId || s.doctorName;
-      if (!doctorMap.has(docKey)) {
-        doctorMap.set(docKey, s);
-      } else {
-        const existing = doctorMap.get(docKey)!;
-        const isCurrentEvening = (s.sessionName || '').toUpperCase().includes('EVENING') || (s.startTime ? parseInt(s.startTime.split(':')[0], 10) >= 16 : false);
-        const isExistingEvening = (existing.sessionName || '').toUpperCase().includes('EVENING') || (existing.startTime ? parseInt(existing.startTime.split(':')[0], 10) >= 16 : false);
-
-        if (isEveningTime) {
-          if (isCurrentEvening && !isExistingEvening) {
-            doctorMap.set(docKey, s);
-          } else if (isCurrentEvening === isExistingEvening && s.status === 'OPEN' && existing.status !== 'OPEN') {
-            doctorMap.set(docKey, s);
-          }
-        } else {
-          if (!isCurrentEvening && isExistingEvening) {
-            doctorMap.set(docKey, s);
-          } else if (isCurrentEvening === isExistingEvening && s.status === 'OPEN' && existing.status !== 'OPEN') {
-            doctorMap.set(docKey, s);
-          }
-        }
+      if (!byDoctor.has(docKey)) {
+        byDoctor.set(docKey, []);
       }
+      byDoctor.get(docKey)!.push(s);
+    });
+
+    byDoctor.forEach((docSessions, docKey) => {
+      // 1. If Evening OPD is OPEN, Evening is current
+      const openEvening = docSessions.find(s => isEveningSession(s) && s.status === 'OPEN');
+      if (openEvening) {
+        doctorMap.set(docKey, openEvening);
+        return;
+      }
+
+      // 2. If Morning OPD is OPEN, Morning is current
+      const openMorning = docSessions.find(s => isMorningSession(s) && s.status === 'OPEN');
+      if (openMorning) {
+        doctorMap.set(docKey, openMorning);
+        return;
+      }
+
+      // 3. If Evening is PAUSED and Morning is CLOSED, check whether evening has started or if it's evening time
+      const morningSess = docSessions.find(s => isMorningSession(s));
+      const eveningSess = docSessions.find(s => isEveningSession(s));
+      if (morningSess && morningSess.status === 'CLOSED' && eveningSess && eveningSess.status === 'PAUSED') {
+        const hr = new Date().getHours();
+        if (hr >= 16 || (eveningSess.waitingCount && eveningSess.waitingCount > 0)) {
+          doctorMap.set(docKey, eveningSess);
+        } else {
+          doctorMap.set(docKey, morningSess);
+        }
+        return;
+      }
+
+      // 4. If Morning is PAUSED (doctor taking a break in morning shift)
+      if (morningSess && morningSess.status === 'PAUSED') {
+        doctorMap.set(docKey, morningSess);
+        return;
+      }
+
+      // 5. Default to morning or first session
+      doctorMap.set(docKey, morningSess || eveningSess || docSessions[0]);
     });
 
     return Array.from(doctorMap.values());
@@ -355,6 +392,10 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   // Handle Token Booking
   const handleConfirmBooking = async () => {
     if (!hospital || !selectedSession) return;
+    if (selectedSession.status !== 'OPEN') {
+      alert(lang === 'HI' ? 'यह ओपीडी सत्र वर्तमान में बंद / रोका गया है। कृपया डॉक्टर द्वारा सत्र शुरू होने की प्रतीक्षा करें।' : 'This OPD session is currently paused or closed. Booking is not permitted until session is opened.');
+      return;
+    }
     if (!patientName.trim()) {
       alert(lang === 'HI' ? 'कृपया अपना नाम दर्ज करें' : 'Please enter patient name');
       return;
@@ -380,7 +421,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         patientAge: parseInt(patientAge) || 30,
         patientGender,
         reasonForVisit: reason.trim(),
-        idempotencyKey: `online-${Date.now()}-${patientPhone}`,
+        idempotencyKey: `online-${hospital.id}-${selectedSession.id}-${patientPhone.trim()}`,
       });
 
       setActiveToken(token);
@@ -774,7 +815,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
 
               {/* Doctors Catalog Grid on Homepage (Laptop: 3-column responsive grid) */}
               <div className="pt-2">
-                <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2">
                   <h3 className="text-xs md:text-sm font-black text-slate-700 uppercase tracking-wider">
                     {t.todayOpdDoctors}
                   </h3>
@@ -789,12 +830,18 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     <div
                       key={s.id}
                       onClick={() => {
-                        setSelectedSession(s);
-                        setViewState('CONFIRM_TOKEN');
+                        if (s.status === 'OPEN') {
+                          setSelectedSession(s);
+                          setViewState('CONFIRM_TOKEN');
+                        }
                       }}
-                      className="bg-white rounded-2xl p-4 border border-slate-200/90 hover:border-emerald-500 shadow-xs hover:shadow-md cursor-pointer transition-all duration-200 flex flex-col justify-between space-y-3 group"
+                      className={`bg-white rounded-2xl p-4 border transition-all duration-200 flex flex-col justify-between space-y-3 group ${
+                        s.status === 'OPEN'
+                          ? 'border-slate-200/90 hover:border-emerald-500 shadow-xs hover:shadow-md cursor-pointer'
+                          : 'border-slate-200 bg-slate-50/50 cursor-default'
+                      }`}
                     >
-                      <div className="flex items-start space-x-3.5">
+                      <div className="flex items-start space-x-3">
                         <div className="relative flex-shrink-0">
                           <img
                             src={s.doctorPhotoUrl || "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=300&auto=format&fit=crop&q=80"}
@@ -820,9 +867,19 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                               <span className="truncate">{s.doctorQualification}</span>
                             </div>
                           )}
-                          <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-1">
-                            <DoorClosed className="w-3 h-3 text-slate-400" />
-                            <span>{s.doctorRoomNumber}</span>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1 flex-wrap">
+                            <span className="flex items-center gap-1">
+                              <DoorClosed className="w-3 h-3 text-slate-400" />
+                              <span>{s.doctorRoomNumber}</span>
+                            </span>
+                            <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-md text-[10px] ${
+                              isEveningSession(s)
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}>
+                              {isEveningSession(s) ? <Sunset className="w-2.5 h-2.5" /> : <Sunrise className="w-2.5 h-2.5" />}
+                              <span>{isEveningSession(s) ? 'Evening OPD' : 'Morning OPD'}</span>
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -832,17 +889,28 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                           <span>Serving: <b className="text-slate-900 font-bold">{s.currentServingToken ? `#${s.currentServingToken}` : '—'}</b></span>
                           <span>Waiting: <b className="text-emerald-700 font-bold">{s.waitingCount}</b></span>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSession(s);
-                            setViewState('CONFIRM_TOKEN');
-                          }}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1 group-hover:bg-emerald-700"
-                        >
-                          <span>Book Token</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
+                        {s.status === 'PAUSED' ? (
+                          <div className="flex items-center space-x-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-300" title="Doctor has stepped out / is on break">
+                            <PauseCircle className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{lang === 'HI' ? 'डॉक्टर ब्रेक पर हैं' : 'Doctor on Break'}</span>
+                          </div>
+                        ) : s.status === 'CLOSED' ? (
+                          <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                            {lang === 'HI' ? 'सत्र समाप्त' : 'Closed'}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSession(s);
+                              setViewState('CONFIRM_TOKEN');
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1 group-hover:bg-emerald-700 cursor-pointer"
+                          >
+                            <span>Book Token</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -909,15 +977,18 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                               <DoorClosed className="w-3 h-3 text-slate-400" />
                               <span>{s.doctorRoomNumber}</span>
                             </span>
-                            {s.status === 'PAUSED' || s.status === 'CLOSED' ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300">
-                                <Clock className="w-3 h-3 text-amber-700" />
-                                <span>Booking Paused by Doctor</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span>{s.sessionName && s.sessionName.toUpperCase().includes('EVENING') ? 'Evening Shift (5 PM - 7 PM)' : 'Morning Shift (9 AM - 2 PM)'}</span>
+                            <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${
+                              isEveningSession(s)
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              {isEveningSession(s) ? <Sunset className="w-3 h-3" /> : <Sunrise className="w-3 h-3" />}
+                              <span>{isEveningSession(s) ? 'Evening OPD' : 'Morning OPD'}</span>
+                            </span>
+                            {s.status === 'PAUSED' && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300">
+                                <PauseCircle className="w-3 h-3 text-amber-600" />
+                                <span>{lang === 'HI' ? 'डॉक्टर ब्रेक पर हैं' : 'On Break'}</span>
                               </span>
                             )}
                           </div>
@@ -938,23 +1009,24 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                         </div>
                       </div>
 
-                      {/* Next Token Callout Box OR Inactive Notice */}
-                      {s.status === 'PAUSED' || s.status === 'CLOSED' ? (
+                      {/* Next Token Callout Box OR Break Notice */}
+                      {s.status === 'PAUSED' ? (
                         <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 text-xs space-y-1">
                           <div className="flex items-center space-x-1.5 text-amber-900 font-extrabold">
-                            <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                            <span>Token Booking Paused</span>
+                            <PauseCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                            <span>{lang === 'HI' ? 'डॉक्टर ब्रेक पर हैं (सत्र रुका हुआ है)' : 'Doctor on Break (Session Paused)'}</span>
                           </div>
-                          {getSessionReopenNote(s.id) ? (
-                            <p className="text-[11px] text-amber-800">
-                              Reopens: <strong>{getSessionReopenNote(s.id)}</strong>
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-amber-800">
-                              This session is temporarily paused. Please check back shortly.
-                            </p>
-                          )}
-                          <p className="text-[10px] text-amber-700">Tokens will start generating fresh when doctor activates this session.</p>
+                          <p className="text-[11px] text-amber-800">
+                            {lang === 'HI'
+                              ? 'डॉक्टर किसी आवश्यक कार्य से बाहर गए हैं / अवकाश पर हैं। टोकन बुकिंग शीघ्र ही फिर से शुरू होगी।'
+                              : 'The doctor has stepped out for urgent work / is on a temporary break. Token booking will resume shortly.'}
+                          </p>
+                        </div>
+                      ) : s.status === 'CLOSED' ? (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+                          <p className="font-bold text-slate-700">
+                            {lang === 'HI' ? 'यह ओपीडी सत्र आज के लिए समाप्त हो गया है।' : 'This OPD session is closed for today.'}
+                          </p>
                         </div>
                       ) : (
                         <div className="bg-gradient-to-r from-amber-50/90 to-amber-50/40 border border-amber-200/80 rounded-xl p-3 flex items-center justify-between text-xs">
@@ -979,13 +1051,20 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     </div>
 
                     {/* CTA Button */}
-                    {s.status === 'PAUSED' || s.status === 'CLOSED' ? (
+                    {s.status === 'PAUSED' ? (
+                      <button
+                        disabled
+                        className="w-full bg-amber-50 text-amber-800 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 cursor-not-allowed border border-amber-200"
+                      >
+                        <PauseCircle className="w-4 h-4 text-amber-600" />
+                        <span>{lang === 'HI' ? 'बुकिंग रुकी हुई है (डॉक्टर ब्रेक पर)' : 'Booking Paused (Doctor on Break)'}</span>
+                      </button>
+                    ) : s.status === 'CLOSED' ? (
                       <button
                         disabled
                         className="w-full bg-slate-100 text-slate-500 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
                       >
-                        <Clock className="w-4 h-4 text-slate-400" />
-                        <span>{getSessionReopenNote(s.id) ? `Booking Paused • Reopens ${getSessionReopenNote(s.id)}` : 'Booking Paused by Doctor'}</span>
+                        <span>{lang === 'HI' ? 'सत्र समाप्त (Closed)' : 'Session Closed'}</span>
                       </button>
                     ) : (
                       <button

@@ -78,34 +78,84 @@ public class OpdSessionService {
     }
 
     private void ensureSessionsForActiveDoctors(UUID hospitalId, LocalDate sessionDate, List<OpdSession> currentSessions) {
-        java.util.Set<UUID> doctorsWithSession = currentSessions.stream()
-                .map(s -> s.getDoctor().getId())
-                .collect(java.util.stream.Collectors.toSet());
-
         List<Doctor> activeDoctors = doctorRepository.findAllByHospitalIdAndActiveTrue(hospitalId);
         Hospital hospital = null;
 
         for (Doctor d : activeDoctors) {
-            if (!doctorsWithSession.contains(d.getId())) {
-                if (hospital == null) {
-                    hospital = hospitalRepository.findById(hospitalId).orElse(null);
-                    if (hospital == null) return;
+            // 1. Ensure Morning Session (09:00 - 14:00, default OPEN)
+            boolean hasMorning = currentSessions.stream()
+                    .anyMatch(s -> s.getDoctor().getId().equals(d.getId())
+                            && s.getSessionName() != null
+                            && s.getSessionName().toUpperCase().contains("MORNING"));
+
+            if (!hasMorning) {
+                var existing = sessionRepository.findByHospitalIdAndDoctorIdAndSessionDateAndSessionName(
+                        hospitalId, d.getId(), sessionDate, "MORNING OPD");
+                if (existing.isPresent()) {
+                    var sess = existing.get();
+                    if (queueRepository.findByOpdSessionId(sess.getId()).isEmpty()) {
+                        OpdSessionQueue queue = new OpdSessionQueue(null, sess, sess.getHospital());
+                        queueRepository.save(queue);
+                    }
+                    currentSessions.add(sess);
+                } else {
+                    if (hospital == null) {
+                        hospital = hospitalRepository.findById(hospitalId).orElse(null);
+                        if (hospital == null) return;
+                    }
+                    OpdSession newMorning = new OpdSession(
+                            null,
+                            hospital,
+                            d,
+                            sessionDate,
+                            "MORNING OPD",
+                            java.time.LocalTime.of(9, 0),
+                            java.time.LocalTime.of(14, 0),
+                            OpdSessionStatus.OPEN
+                    );
+                    sessionRepository.save(newMorning);
+                    OpdSessionQueue queue = new OpdSessionQueue(null, newMorning, hospital);
+                    queueRepository.save(queue);
+                    currentSessions.add(newMorning);
                 }
-                OpdSession newSession = new OpdSession(
-                        null,
-                        hospital,
-                        d,
-                        sessionDate,
-                        "MORNING OPD",
-                        java.time.LocalTime.of(9, 0),
-                        java.time.LocalTime.of(14, 0),
-                        OpdSessionStatus.OPEN
-                );
-                sessionRepository.save(newSession);
-                OpdSessionQueue queue = new OpdSessionQueue(null, newSession, hospital);
-                queueRepository.save(queue);
-                currentSessions.add(newSession);
-                doctorsWithSession.add(d.getId());
+            }
+
+            // 2. Ensure Evening Session (17:00 - 19:00, default PAUSED until doctor enables it)
+            boolean hasEvening = currentSessions.stream()
+                    .anyMatch(s -> s.getDoctor().getId().equals(d.getId())
+                            && s.getSessionName() != null
+                            && s.getSessionName().toUpperCase().contains("EVENING"));
+
+            if (!hasEvening) {
+                var existing = sessionRepository.findByHospitalIdAndDoctorIdAndSessionDateAndSessionName(
+                        hospitalId, d.getId(), sessionDate, "EVENING OPD");
+                if (existing.isPresent()) {
+                    var sess = existing.get();
+                    if (queueRepository.findByOpdSessionId(sess.getId()).isEmpty()) {
+                        OpdSessionQueue queue = new OpdSessionQueue(null, sess, sess.getHospital());
+                        queueRepository.save(queue);
+                    }
+                    currentSessions.add(sess);
+                } else {
+                    if (hospital == null) {
+                        hospital = hospitalRepository.findById(hospitalId).orElse(null);
+                        if (hospital == null) return;
+                    }
+                    OpdSession newEvening = new OpdSession(
+                            null,
+                            hospital,
+                            d,
+                            sessionDate,
+                            "EVENING OPD",
+                            java.time.LocalTime.of(17, 0),
+                            java.time.LocalTime.of(19, 0),
+                            OpdSessionStatus.PAUSED
+                    );
+                    sessionRepository.save(newEvening);
+                    OpdSessionQueue queue = new OpdSessionQueue(null, newEvening, hospital);
+                    queueRepository.save(queue);
+                    currentSessions.add(newEvening);
+                }
             }
         }
     }
@@ -159,6 +209,23 @@ public class OpdSessionService {
 
         OpdSession session = sessionRepository.findByIdAndHospitalId(sessionId, hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("OPD Session not found."));
+
+        // If activating a shift, ensure the other shift for this doctor on the same date is not left OPEN
+        if (status == OpdSessionStatus.OPEN && session.getSessionName() != null) {
+            boolean isEvening = session.getSessionName().toUpperCase().contains("EVENING");
+            List<OpdSession> docSessions = sessionRepository.findAllByHospitalIdAndSessionDate(hospitalId, session.getSessionDate());
+            for (OpdSession other : docSessions) {
+                if (other.getDoctor().getId().equals(session.getDoctor().getId()) && !other.getId().equals(session.getId())) {
+                    if (isEvening && other.getStatus() == OpdSessionStatus.OPEN) {
+                        other.setStatus(OpdSessionStatus.CLOSED);
+                        sessionRepository.save(other);
+                    } else if (!isEvening && other.getStatus() == OpdSessionStatus.OPEN) {
+                        other.setStatus(OpdSessionStatus.PAUSED);
+                        sessionRepository.save(other);
+                    }
+                }
+            }
+        }
 
         session.setStatus(status);
         sessionRepository.save(session);

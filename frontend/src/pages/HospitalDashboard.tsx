@@ -91,7 +91,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     selectedSessionIdRef.current = selectedSessionId;
   }, [selectedSessionId]);
 
-  const [activeShift, setActiveShift] = useState<'MORNING' | 'EVENING'>(() => {
+  const [activeShift, setActiveShift] = useState<'MORNING' | 'EVENING' | 'FULL_DAY'>(() => {
+    const saved = localStorage.getItem(`citycare_active_shift_${currentUser.hospitalId}`);
+    if (saved === 'MORNING' || saved === 'EVENING' || saved === 'FULL_DAY') return saved;
     const hr = new Date().getHours();
     return hr >= 16 ? 'EVENING' : 'MORNING';
   });
@@ -109,7 +111,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
   const isMorningSession = (s: { sessionName?: string; startTime?: string }) => !isEveningSession(s);
 
-  const getDoctorSessionForShift = (docId: string, shift: 'MORNING' | 'EVENING') => {
+  const getDoctorSessionForShift = (docId: string, shift: 'MORNING' | 'EVENING' | 'FULL_DAY') => {
     const docSessions = sessions.filter(s => s.doctorId === docId);
     if (shift === 'EVENING') {
       return docSessions.find(s => isEveningSession(s)) || null;
@@ -118,9 +120,44 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     }
   };
 
+  const getDoctorCurrentSession = (docId: string, allSessions: OpdSession[] = sessions) => {
+    const docSessions = allSessions.filter(s => s.doctorId === docId);
+    const openEvening = docSessions.find(s => isEveningSession(s) && s.status === 'OPEN');
+    if (openEvening) return openEvening;
+    const openMorning = docSessions.find(s => isMorningSession(s) && s.status === 'OPEN');
+    if (openMorning) return openMorning;
+    const pausedEvening = docSessions.find(s => isEveningSession(s) && s.status === 'PAUSED');
+    const morningSess = docSessions.find(s => isMorningSession(s));
+    if (morningSess && morningSess.status === 'CLOSED' && pausedEvening) return pausedEvening;
+    const pausedMorning = docSessions.find(s => isMorningSession(s) && s.status === 'PAUSED');
+    if (pausedMorning) return pausedMorning;
+    return morningSess || docSessions[0] || null;
+  };
+
   const [queueBoard, setQueueBoard] = useState<QueueBoard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Full Day History state
+  const [fullDayBoard, setFullDayBoard] = useState<{
+    morningBoard: QueueBoard | null;
+    eveningBoard: QueueBoard | null;
+    allTokens: Array<TokenResponse & { shiftLabel: string; shiftType: 'MORNING' | 'EVENING' }>;
+    stats: {
+      total: number;
+      morning: number;
+      evening: number;
+      completed: number;
+      waiting: number;
+      called: number;
+      inConsultation: number;
+      skipped: number;
+    };
+  } | null>(null);
+  const [loadingFullDay, setLoadingFullDay] = useState(false);
+  const [fullDaySearch, setFullDaySearch] = useState('');
+  const [fullDayStatusFilter, setFullDayStatusFilter] = useState<string>('ALL');
+  const [fullDayShiftFilter, setFullDayShiftFilter] = useState<'ALL' | 'MORNING' | 'EVENING'>('ALL');
 
   // Doctors list & management state
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -140,30 +177,22 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   });
 
   // Dedicated Doctor View state
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
-  const selectedDoctorIdRef = useRef<string>('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(() => {
+    return localStorage.getItem(`citycare_selected_doctor_${currentUser.hospitalId}`) || '';
+  });
+  const selectedDoctorIdRef = useRef<string>(selectedDoctorId);
   useEffect(() => {
     selectedDoctorIdRef.current = selectedDoctorId;
-  }, [selectedDoctorId]);
+    if (selectedDoctorId) {
+      localStorage.setItem(`citycare_selected_doctor_${currentUser.hospitalId}`, selectedDoctorId);
+    }
+  }, [selectedDoctorId, currentUser.hospitalId]);
   const [doctorBoard, setDoctorBoard] = useState<QueueBoard | null>(null);
   const [loadingDoctorBoard, setLoadingDoctorBoard] = useState(false);
 
-  // Session Pause / Deactivation & Shift Scheduling State
-  const [showPauseModal, setShowPauseModal] = useState(false);
-  const [sessionToPause, setSessionToPause] = useState<OpdSession | null>(null);
-  const [pauseReopenPreset, setPauseReopenPreset] = useState<'EVENING' | 'TOMORROW_MORNING' | '30_MIN' | 'CUSTOM'>('EVENING');
-  const [customReopenTime, setCustomReopenTime] = useState('');
-  const [pausingSession, setPausingSession] = useState(false);
-
-  // Dynamic Shift Creation State
-  const [showShiftModal, setShowShiftModal] = useState(false);
-  const [shiftDoctorId, setShiftDoctorId] = useState<string>('');
-  const [shiftForm, setShiftForm] = useState({
-    sessionName: 'MORNING OPD',
-    startTime: '09:00',
-    endTime: '14:00',
-  });
-  const [startingShift, setStartingShift] = useState(false);
+  const [fullDayPage, setFullDayPage] = useState<number>(1);
+  const fullDayPageSize = 10;
+  const fullDayDoctorIdRef = useRef<string>('');
 
   // Walk-in Control state
   const [walkInCount, setWalkInCount] = useState<number>(5);
@@ -305,14 +334,90 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     setLatestArrival(null);
   }, [selectedDoctorId, selectedSessionId, activeTab]);
 
-  const activeShiftRef = useRef<'MORNING' | 'EVENING'>(activeShift);
+  const activeShiftRef = useRef<'MORNING' | 'EVENING' | 'FULL_DAY'>(activeShift);
   useEffect(() => {
     activeShiftRef.current = activeShift;
   }, [activeShift]);
 
-  const handleShiftChange = (newShift: 'MORNING' | 'EVENING') => {
-    setActiveShift(newShift);
-    activeShiftRef.current = newShift;
+  const switchDoctorShift = async (docId: string, targetShift: 'MORNING' | 'EVENING') => {
+    setSelectedDoctorId(docId);
+    selectedDoctorIdRef.current = docId;
+    localStorage.setItem(`citycare_selected_doctor_${currentUser.hospitalId}`, docId);
+
+    const docSessions = sessions.filter(s => s.doctorId === docId);
+    const morningS = docSessions.find(s => isMorningSession(s));
+    const eveningS = docSessions.find(s => isEveningSession(s));
+
+    try {
+      if (targetShift === 'EVENING') {
+        // 1. Close this doctor's morning session
+        if (morningS && morningS.status !== 'CLOSED') {
+          await api.updateSessionStatus(currentUser.hospitalId, morningS.id, 'CLOSED');
+        }
+        // 2. Open this doctor's evening session
+        if (eveningS) {
+          await api.updateSessionStatus(currentUser.hospitalId, eveningS.id, 'OPEN');
+        }
+        setActiveShift('EVENING');
+        activeShiftRef.current = 'EVENING';
+        localStorage.setItem(`citycare_active_shift_${currentUser.hospitalId}`, 'EVENING');
+        if (eveningS) {
+          setSelectedSessionId(eveningS.id);
+          selectedSessionIdRef.current = eveningS.id;
+          await loadQueueBoard(eveningS.id, false);
+          if (activeTabRef.current === 'DOCTOR_ROOM') {
+            await loadDoctorRoomBoard(docId, selectedDate, eveningS.id, false);
+          }
+        }
+      } else {
+        // MORNING
+        // 1. Pause this doctor's evening session if open
+        if (eveningS && eveningS.status === 'OPEN') {
+          await api.updateSessionStatus(currentUser.hospitalId, eveningS.id, 'PAUSED');
+        }
+        // 2. Open this doctor's morning session
+        if (morningS) {
+          await api.updateSessionStatus(currentUser.hospitalId, morningS.id, 'OPEN');
+        }
+        setActiveShift('MORNING');
+        activeShiftRef.current = 'MORNING';
+        localStorage.setItem(`citycare_active_shift_${currentUser.hospitalId}`, 'MORNING');
+        if (morningS) {
+          setSelectedSessionId(morningS.id);
+          selectedSessionIdRef.current = morningS.id;
+          await loadQueueBoard(morningS.id, false);
+          if (activeTabRef.current === 'DOCTOR_ROOM') {
+            await loadDoctorRoomBoard(docId, selectedDate, morningS.id, false);
+          }
+        }
+      }
+
+      await loadSessions(selectedDate, false);
+      notifyQueueSync({
+        action: 'DOCTOR_SHIFT_SWITCHED',
+        doctorId: docId,
+        shift: targetShift,
+      });
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to switch doctor shift');
+    }
+  };
+
+  const handleShiftChange = (newShift: 'MORNING' | 'EVENING' | 'FULL_DAY') => {
+    if (!selectedDoctorId) return;
+    const doc = doctors.find(d => d.id === selectedDoctorId);
+    if (!doc) return;
+
+    if (newShift === 'FULL_DAY') {
+      setActiveShift('FULL_DAY');
+      activeShiftRef.current = 'FULL_DAY';
+      localStorage.setItem(`citycare_active_shift_${currentUser.hospitalId}`, 'FULL_DAY');
+      setFullDayPage(1);
+      loadFullDayHistory(doc.id, true);
+      return;
+    }
+
+    switchDoctorShift(doc.id, newShift);
   };
 
   // 1. Initial Load: Fetch Sessions for Selected Date and Doctors
@@ -382,17 +487,24 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   useEffect(() => {
     if (!selectedDoctorId) {
       if (doctors.length > 0) {
-        const firstDocId = doctors[0].id;
-        setSelectedDoctorId(firstDocId);
-        selectedDoctorIdRef.current = firstDocId;
+        const savedDocId = localStorage.getItem(`citycare_selected_doctor_${currentUser.hospitalId}`);
+        const validDoc = doctors.find(d => d.id === savedDocId) || doctors[0];
+        setSelectedDoctorId(validDoc.id);
+        selectedDoctorIdRef.current = validDoc.id;
       }
       return;
     }
 
     const docSessions = sessions.filter(s => s.doctorId === selectedDoctorId);
-    const shiftSession = activeShift === 'EVENING'
-      ? (docSessions.find(s => isEveningSession(s)) || null)
-      : (docSessions.find(s => isMorningSession(s)) || null);
+    let shiftSession: OpdSession | null = null;
+    if (activeShift === 'EVENING') {
+      shiftSession = docSessions.find(s => isEveningSession(s)) || null;
+    } else if (activeShift === 'MORNING') {
+      shiftSession = docSessions.find(s => isMorningSession(s)) || null;
+    } else {
+      // FULL_DAY: connect selectedSessionId to the open session or first available session of doctor
+      shiftSession = docSessions.find(s => s.status === 'OPEN') || docSessions[0] || null;
+    }
 
     if (shiftSession) {
       if (selectedSessionIdRef.current !== shiftSession.id) {
@@ -406,7 +518,109 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         setQueueBoard(null);
       }
     }
-  }, [selectedDoctorId, activeShift, sessions, doctors]);
+  }, [selectedDoctorId, activeShift, sessions, doctors, currentUser.hospitalId]);
+
+  const loadFullDayHistory = async (docId: string, showSpinner = true) => {
+    if (!docId) return;
+    try {
+      if (showSpinner) {
+        setLoadingFullDay(true);
+        // Only clear if switching to a different doctor
+        if (fullDayDoctorIdRef.current !== docId) {
+          setFullDayBoard(null);
+        }
+      }
+      fullDayDoctorIdRef.current = docId;
+
+      // Fetch fresh sessions for the date without calling setSessions to prevent cascading trigger loops
+      const dateSessions = await api.getSessionsByDate(currentUser.hospitalId, selectedDate);
+
+      const docSessions = dateSessions.filter(s => s.doctorId === docId);
+      const morningSess = docSessions.find(s => isMorningSession(s));
+      const eveningSess = docSessions.find(s => isEveningSession(s));
+
+      let mBoard: QueueBoard | null = null;
+      let eBoard: QueueBoard | null = null;
+
+      if (morningSess) {
+        try {
+          mBoard = await api.getQueueBoard(currentUser.hospitalId, morningSess.id);
+        } catch (_) {}
+      }
+      if (eveningSess) {
+        try {
+          eBoard = await api.getQueueBoard(currentUser.hospitalId, eveningSess.id);
+        } catch (_) {}
+      }
+
+      // Concurrency check: if user switched to another doctor while fetching, ignore this stale response
+      if (selectedDoctorIdRef.current !== docId) return;
+
+      const mTokens = (mBoard?.activeTokens || []).map(t => ({
+        ...t,
+        shiftLabel: 'Morning OPD',
+        shiftType: 'MORNING' as const,
+      }));
+      const eTokens = (eBoard?.activeTokens || []).map(t => ({
+        ...t,
+        shiftLabel: 'Evening OPD',
+        shiftType: 'EVENING' as const,
+      }));
+
+      const combined = [...mTokens, ...eTokens];
+
+      const stats = {
+        total: combined.length,
+        morning: mTokens.length,
+        evening: eTokens.length,
+        completed: combined.filter(t => t.status === 'COMPLETED').length,
+        waiting: combined.filter(t => t.status === 'WAITING').length,
+        called: combined.filter(t => t.status === 'CALLED').length,
+        inConsultation: combined.filter(t => t.status === 'IN_CONSULTATION').length,
+        skipped: combined.filter(t => t.status === 'SKIPPED').length,
+      };
+
+      setFullDayBoard({
+        morningBoard: mBoard,
+        eveningBoard: eBoard,
+        allTokens: combined,
+        stats,
+      });
+    } catch (err) {
+      console.error('Failed to load full day history:', err);
+    } finally {
+      if (showSpinner) setLoadingFullDay(false);
+    }
+  };
+
+  const filteredFullDayTokens = useMemo(() => {
+    if (!fullDayBoard?.allTokens) return [];
+    return fullDayBoard.allTokens
+      .filter(t => fullDayShiftFilter === 'ALL' || t.shiftType === fullDayShiftFilter)
+      .filter(t => fullDayStatusFilter === 'ALL' || t.status === fullDayStatusFilter)
+      .filter(t => {
+        if (!fullDaySearch.trim()) return true;
+        const q = fullDaySearch.trim().toLowerCase().replace(/^#/, '');
+        return (
+          String(t.tokenNumber).includes(q) ||
+          (t.patientName && t.patientName.toLowerCase().includes(q)) ||
+          (t.patientPhone && t.patientPhone.includes(q)) ||
+          (t.bookingReference && t.bookingReference.toLowerCase().includes(q))
+        );
+      });
+  }, [fullDayBoard, fullDayShiftFilter, fullDayStatusFilter, fullDaySearch]);
+
+  const totalFullDayPages = Math.max(1, Math.ceil(filteredFullDayTokens.length / fullDayPageSize));
+  const paginatedFullDayTokens = useMemo(() => {
+    const start = (fullDayPage - 1) * fullDayPageSize;
+    return filteredFullDayTokens.slice(start, start + fullDayPageSize);
+  }, [filteredFullDayTokens, fullDayPage]);
+
+  useEffect(() => {
+    if (activeShift === 'FULL_DAY' && selectedDoctorId) {
+      loadFullDayHistory(selectedDoctorId, false);
+    }
+  }, [activeShift, selectedDoctorId, selectedDate]);
 
   // 3. Fetch Queue Board on session change & setup real-time listeners (SSE, Cross-Tab Broadcast, Tab Focus, Polling)
   useEffect(() => {
@@ -432,7 +646,11 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       }
       // 2. Pure background sync of sessions (zero selection mutation)
       fetchSessionsOnly(selectedDate);
-      // 3. Only refresh Doctor Room Board if user is currently inside DOCTOR_ROOM tab
+      // 3. Refresh Full Day history if in full day view
+      if (activeShiftRef.current === 'FULL_DAY' && selectedDoctorIdRef.current) {
+        loadFullDayHistory(selectedDoctorIdRef.current, false);
+      }
+      // 4. Only refresh Doctor Room Board if user is currently inside DOCTOR_ROOM tab
       if (activeTabRef.current === 'DOCTOR_ROOM' && selectedDoctorIdRef.current) {
         loadDoctorRoomBoard(selectedDoctorIdRef.current, selectedDate, undefined, false);
       }
@@ -531,6 +749,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       if (showSpinner) setLoading(true);
       setError(null);
       const board = await api.getQueueBoard(currentUser.hospitalId, sessionId);
+      if (selectedSessionIdRef.current !== sessionId) return;
       setQueueBoard(board);
 
       if (board && board.activeTokens) {
@@ -623,148 +842,22 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     }
   };
 
-  const getSessionReopenNote = (sessionId: string) => {
-    const custom = localStorage.getItem(`opd_session_reopen_${sessionId}`);
-    if (custom && custom.trim()) return custom.trim();
-    return null;
-  };
-
   const handleToggleSessionStatus = async (session: OpdSession) => {
-    if (session.status === 'OPEN') {
-      setSessionToPause(session);
-      // Pre-fill with other scheduled shift time on same date if exists, else empty
-      const otherSession = sessions.find(s => s.doctorId === session.doctorId && s.id !== session.id);
-      const suggestedTime = otherSession?.startTime 
-        ? `${otherSession.startTime.slice(0, 5)} (${otherSession.sessionName})` 
-        : '';
-      setCustomReopenTime(suggestedTime);
-      setShowPauseModal(true);
-    } else {
-      try {
-        await api.updateSessionStatus(currentUser.hospitalId, session.id, 'OPEN');
-        localStorage.removeItem(`opd_session_reopen_${session.id}`);
-        await loadSessions(selectedDate);
-        if (activeTab === 'DOCTOR_ROOM' && selectedDoctorId) {
-          await loadDoctorRoomBoard(selectedDoctorId, selectedDate, session.id);
-        } else if (selectedSessionId) {
-          await loadQueueBoard(session.id, false);
-        }
-        notifyQueueSync({ sessionId: session.id, status: 'OPEN', action: 'STATUS_UPDATED' });
-      } catch (err: unknown) {
-        alert(err instanceof Error ? err.message : 'Failed to activate session');
-      }
-    }
-  };
-
-  const handleConfirmPauseSession = async () => {
-    if (!sessionToPause) return;
     try {
-      setPausingSession(true);
-      const reopenNote = customReopenTime.trim();
-
-      await api.updateSessionStatus(currentUser.hospitalId, sessionToPause.id, 'PAUSED');
-      if (reopenNote) {
-        localStorage.setItem(`opd_session_reopen_${sessionToPause.id}`, reopenNote);
-      } else {
-        localStorage.removeItem(`opd_session_reopen_${sessionToPause.id}`);
-      }
-
-      setShowPauseModal(false);
-      setSessionToPause(null);
-
+      const newStatus = session.status === 'OPEN' ? 'PAUSED' : 'OPEN';
+      await api.updateSessionStatus(currentUser.hospitalId, session.id, newStatus);
       await loadSessions(selectedDate);
       if (activeTab === 'DOCTOR_ROOM' && selectedDoctorId) {
-        await loadDoctorRoomBoard(selectedDoctorId, selectedDate, sessionToPause.id);
+        await loadDoctorRoomBoard(selectedDoctorId, selectedDate, session.id);
       } else if (selectedSessionId) {
-        await loadQueueBoard(sessionToPause.id, false);
+        await loadQueueBoard(session.id, false);
       }
-
-      notifyQueueSync({
-        sessionId: sessionToPause.id,
-        status: 'PAUSED',
-        reopenTime: reopenNote || undefined,
-        action: 'STATUS_UPDATED',
-      });
+      notifyQueueSync({ sessionId: session.id, status: newStatus, action: 'STATUS_UPDATED' });
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to pause session');
-    } finally {
-      setPausingSession(false);
+      alert(err instanceof Error ? err.message : 'Failed to update session status');
     }
   };
 
-  const handleOpenStartShift = (doctorId: string, shiftPreset?: 'MORNING' | 'EVENING') => {
-    setShiftDoctorId(doctorId);
-    const targetPreset = shiftPreset || activeShift;
-    if (targetPreset === 'EVENING') {
-      setShiftForm({
-        sessionName: 'EVENING OPD',
-        startTime: '17:00',
-        endTime: '19:00',
-      });
-    } else {
-      setShiftForm({
-        sessionName: 'MORNING OPD',
-        startTime: '09:00',
-        endTime: '14:00',
-      });
-    }
-    setShowShiftModal(true);
-  };
-
-  const handleConfirmStartShift = async () => {
-    if (!shiftDoctorId || !shiftForm.sessionName.trim()) {
-      alert('Please specify a valid shift name');
-      return;
-    }
-    try {
-      setStartingShift(true);
-      const sessionName = shiftForm.sessionName.trim().toUpperCase();
-      const startTime = shiftForm.startTime ? `${shiftForm.startTime}:00` : undefined;
-      const endTime = shiftForm.endTime ? `${shiftForm.endTime}:00` : undefined;
-
-      const newSession = await api.createSession(currentUser.hospitalId, {
-        doctorId: shiftDoctorId,
-        sessionDate: selectedDate,
-        sessionName,
-        startTime,
-        endTime,
-      });
-
-      localStorage.removeItem(`opd_session_reopen_${newSession.id}`);
-      setShowShiftModal(false);
-
-      if (isEveningSession(newSession)) {
-        setActiveShift('EVENING');
-        activeShiftRef.current = 'EVENING';
-      } else {
-        setActiveShift('MORNING');
-        activeShiftRef.current = 'MORNING';
-      }
-
-      setSelectedDoctorId(shiftDoctorId);
-      selectedDoctorIdRef.current = shiftDoctorId;
-      setSelectedSessionId(newSession.id);
-      selectedSessionIdRef.current = newSession.id;
-
-      await loadSessions(selectedDate);
-
-      if (activeTab === 'DOCTOR_ROOM') {
-        await loadDoctorRoomBoard(shiftDoctorId, selectedDate, newSession.id);
-      } else {
-        await loadQueueBoard(newSession.id, true);
-      }
-
-      notifyQueueSync({
-        sessionId: newSession.id,
-        action: 'SESSION_CREATED',
-        sessionName,
-      });
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to start OPD session');
-    } finally {
-      setStartingShift(false);
-    }
-  };
 
 
   const notifyQueueSync = (extraPayload: Record<string, unknown> = {}) => {
@@ -1268,14 +1361,14 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     />
                   </div>
 
-                  {/* OPD Shift Switcher (Morning vs Evening) */}
+                  {/* OPD Shift Switcher (Morning vs Evening vs Full Day) */}
                   <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold">
                     <button
                       type="button"
                       onClick={() => handleShiftChange('MORNING')}
                       className={`px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
                         activeShift === 'MORNING'
-                          ? 'bg-emerald-600 text-white shadow-xs'
+                          ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                       title="Morning OPD Shift (9:00 AM to 2:00 PM)"
@@ -1288,13 +1381,26 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       onClick={() => handleShiftChange('EVENING')}
                       className={`px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
                         activeShift === 'EVENING'
-                          ? 'bg-indigo-600 text-white shadow-xs'
+                          ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                       title="Evening OPD Shift (5:00 PM to 7:00 PM)"
                     >
                       <Sunset className="w-3.5 h-3.5" />
                       <span>Evening OPD (5 PM - 7 PM)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleShiftChange('FULL_DAY')}
+                      className={`px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
+                        activeShift === 'FULL_DAY'
+                          ? 'bg-purple-700 text-white shadow-xs font-extrabold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Full Day Patient Queue (Combined Morning + Evening OPD)"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Full Day History</span>
                     </button>
                   </div>
 
@@ -1327,7 +1433,8 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               {doctors.filter(d => d.active).length > 0 ? (
                 <div className="flex space-x-3 overflow-x-auto pb-2 pt-1 scrollbar-thin">
                   {doctors.filter(d => d.active).map((doc) => {
-                    const s = getDoctorSessionForShift(doc.id, activeShift);
+                    const s = getDoctorCurrentSession(doc.id, sessions);
+                    const isDocEvening = s ? isEveningSession(s) : false;
                     const isSelected = selectedDoctorId === doc.id;
                     return (
                       <div
@@ -1335,19 +1442,29 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                         onClick={() => {
                           setSelectedDoctorId(doc.id);
                           selectedDoctorIdRef.current = doc.id;
-                          if (s) {
-                            setSelectedSessionId(s.id);
-                            selectedSessionIdRef.current = s.id;
-                            loadQueueBoard(s.id);
+                          localStorage.setItem(`citycare_selected_doctor_${currentUser.hospitalId}`, doc.id);
+                          if (activeShift === 'FULL_DAY') {
+                            setFullDayPage(1);
+                            loadFullDayHistory(doc.id, true);
                           } else {
-                            setSelectedSessionId('');
-                            selectedSessionIdRef.current = '';
-                            setQueueBoard(null);
+                            const docShift = isDocEvening ? 'EVENING' : 'MORNING';
+                            setActiveShift(docShift);
+                            activeShiftRef.current = docShift;
+                            if (s) {
+                              setSelectedSessionId(s.id);
+                              selectedSessionIdRef.current = s.id;
+                              setQueueBoard(null);
+                              loadQueueBoard(s.id);
+                            } else {
+                              setSelectedSessionId('');
+                              selectedSessionIdRef.current = '';
+                              setQueueBoard(null);
+                            }
                           }
                           setLatestArrival(null);
                           setError(null);
                         }}
-                        className={`flex-shrink-0 text-left p-3.5 rounded-2xl border-2 transition cursor-pointer min-w-[250px] flex flex-col justify-between ${
+                        className={`flex-shrink-0 text-left p-4 rounded-2xl border-2 transition cursor-pointer min-w-[290px] w-72 sm:w-80 flex flex-col justify-between ${
                           isSelected
                             ? 'border-emerald-600 bg-emerald-50/70 shadow-md ring-2 ring-emerald-600/20'
                             : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white'
@@ -1356,72 +1473,99 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                         <div>
                           <div className="flex items-center justify-between mb-1 gap-2">
                             <span className="font-extrabold text-sm text-slate-900 truncate">{doc.name}</span>
-                            <span className="text-[11px] bg-white px-2 py-0.5 rounded-md border border-slate-200 font-bold text-emerald-700 shadow-2xs whitespace-nowrap flex-shrink-0">
+                            <span className="text-[11px] bg-white px-2.5 py-0.5 rounded-md border border-slate-200 font-bold text-emerald-700 shadow-2xs whitespace-nowrap flex-shrink-0">
                               {doc.roomNumber}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 truncate mb-2">{doc.specialty}</p>
+                          <p className="text-xs text-slate-500 truncate mb-3">{doc.specialty}</p>
 
-                          {/* Active / Inactive Status Strip */}
-                          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200/60 text-[11px]">
-                            {s ? (
-                              <>
+                          {/* Direct Shift Switcher Segmented Control */}
+                          {s ? (
+                            <>
+                              <div
+                                className="grid grid-cols-2 p-1 bg-slate-200/80 rounded-xl mb-3 gap-1 shadow-2xs border border-slate-300/60"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => switchDoctorShift(doc.id, 'MORNING')}
+                                  className={`py-1 rounded-lg text-[11px] font-black flex items-center justify-center space-x-1.5 transition cursor-pointer ${
+                                    !isDocEvening
+                                      ? 'bg-amber-500 text-white shadow-xs'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
+                                  }`}
+                                  title="Click to activate Morning OPD for this doctor"
+                                >
+                                  <Sunrise className="w-3.5 h-3.5" />
+                                  <span>Morning</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => switchDoctorShift(doc.id, 'EVENING')}
+                                  className={`py-1 rounded-lg text-[11px] font-black flex items-center justify-center space-x-1.5 transition cursor-pointer ${
+                                    isDocEvening
+                                      ? 'bg-purple-600 text-white shadow-xs'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/50'
+                                  }`}
+                                  title="Click to activate Evening OPD for this doctor"
+                                >
+                                  <Sunset className="w-3.5 h-3.5" />
+                                  <span>Evening</span>
+                                </button>
+                              </div>
+
+                              {/* Active Status & Take Break / Resume Row */}
+                              <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-200/70">
                                 {s.status === 'OPEN' ? (
-                                  <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                  <span className="inline-flex items-center gap-1.5 font-bold text-emerald-700 text-xs bg-emerald-100/80 border border-emerald-300/70 px-2.5 py-0.5 rounded-full">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                     <span>Active</span>
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 font-bold text-amber-800" title={getSessionReopenNote(s.id) || undefined}>
-                                    <PauseCircle className="w-3 h-3 text-amber-600" />
-                                    <span className="truncate max-w-[110px]">{getSessionReopenNote(s.id) || 'Paused'}</span>
+                                  <span className="inline-flex items-center gap-1.5 font-bold text-amber-800 text-xs bg-amber-100/80 border border-amber-300/70 px-2.5 py-0.5 rounded-full">
+                                    <PauseCircle className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>On Break</span>
                                   </span>
                                 )}
+
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleToggleSessionStatus(s);
                                   }}
-                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer ${
+                                  className={`text-xs font-bold px-3 py-1 rounded-lg border transition shadow-2xs cursor-pointer ${
                                     s.status === 'OPEN'
-                                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
-                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 hover:border-amber-400'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 hover:border-emerald-400'
                                   }`}
                                 >
-                                  {s.status === 'OPEN' ? 'Pause' : 'Activate'}
+                                  {s.status === 'OPEN' ? 'Take Break' : 'Resume'}
                                 </button>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-slate-400 font-semibold italic text-[10px]">
-                                  Shift Not Started
-                                </span>
-                                <button
-                                  type="button"
-                                  disabled={startingShift}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpenStartShift(doc.id, activeShift);
-                                  }}
-                                  className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition cursor-pointer"
-                                >
-                                  + Start Shift
-                                </button>
-                              </>
-                            )}
-                          </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center justify-between w-full py-1 mb-3 pb-2 border-b border-slate-200/60">
+                              <span className="inline-flex items-center gap-1.5 font-bold text-slate-500 text-xs">
+                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Morning OPD</span>
+                              </span>
+                              <span className="text-xs bg-slate-100 text-slate-600 font-bold px-2.5 py-0.5 rounded-md border border-slate-200">
+                                Scheduled
+                              </span>
+                            </div>
+                          )}
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60 font-semibold gap-2">
-                          <span className="text-slate-600">Waiting: <strong className="text-emerald-700">{s ? s.waitingCount : '—'}</strong></span>
+                        <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/60 font-semibold gap-2">
+                          <span className="text-slate-600">Waiting: <strong className="text-emerald-700 font-extrabold text-sm">{s ? s.waitingCount : '—'}</strong></span>
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleOpenEditDoctor(doc);
                             }}
-                            className="bg-white hover:bg-emerald-600 hover:text-white text-slate-700 border border-slate-300 hover:border-emerald-600 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1 shadow-2xs transition cursor-pointer"
+                            className="bg-white hover:bg-emerald-600 hover:text-white text-slate-700 border border-slate-300 hover:border-emerald-600 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center space-x-1 shadow-2xs transition cursor-pointer"
                             title="Edit this doctor profile"
                           >
                             <Edit className="w-3 h-3 text-emerald-600" />
@@ -1443,8 +1587,8 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               )}
             </div>
 
-            {/* Live Queue Board Grid - only displayed when sessions exist for selected date */}
-            {queueBoard && sessions.length > 0 && selectedSessionId && (
+            {/* Live Queue Board Grid - only displayed when sessions exist for selected date and not in Full Day History view */}
+            {activeShift !== 'FULL_DAY' && queueBoard && sessions.length > 0 && selectedSessionId && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column: Room Status & Bulk Walk-In Tool */}
                 <div className="space-y-6">
@@ -1762,34 +1906,356 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               </div>
             )}
 
+            {/* FULL DAY HISTORY VIEW (Morning + Evening Consolidated) */}
+            {activeShift === 'FULL_DAY' && (
+              <div className="space-y-6">
+                {/* Full Day Header & Metrics */}
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-3 bg-indigo-50 text-indigo-700 rounded-2xl border border-indigo-100">
+                        <Calendar className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h2 className="text-lg font-black text-slate-900">
+                            Full Day Patient History (संपूर्ण दिन का विवरण)
+                          </h2>
+                          <span className="bg-indigo-100 text-indigo-800 text-[11px] font-black px-2.5 py-0.5 rounded-full">
+                            Morning + Evening
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Consolidated today's queue for {doctors.find(d => d.id === selectedDoctorId)?.name || 'Doctor'} • {selectedDate}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => selectedDoctorId && loadFullDayHistory(selectedDoctorId, true)}
+                      disabled={loadingFullDay}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${loadingFullDay ? 'animate-spin' : ''}`} />
+                      <span>Refresh History</span>
+                    </button>
+                  </div>
+
+                  {/* Summary Metric Cards - Total, Morning OPD, Evening OPD */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => { setFullDayShiftFilter('ALL'); setFullDayPage(1); }}
+                      className={`text-left p-5 rounded-2xl border transition cursor-pointer ${
+                        fullDayShiftFilter === 'ALL'
+                          ? 'bg-indigo-50/70 border-indigo-300 ring-2 ring-indigo-500/20 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="text-slate-500 block text-[11px] font-black uppercase tracking-wider">Total Patients</span>
+                      <span className="font-black text-3xl text-slate-900 mt-1 block">{fullDayBoard?.stats.total || 0}</span>
+                      <span className="text-[11px] text-slate-400 mt-0.5 block font-medium">All shifts for selected doctor</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setFullDayShiftFilter('MORNING'); setFullDayPage(1); }}
+                      className={`text-left p-5 rounded-2xl border transition cursor-pointer ${
+                        fullDayShiftFilter === 'MORNING'
+                          ? 'bg-amber-100/60 border-amber-400 ring-2 ring-amber-500/20 shadow-xs'
+                          : 'bg-amber-50/60 border-amber-200/70 hover:border-amber-300'
+                      }`}
+                    >
+                      <span className="text-amber-800 block text-[11px] font-black uppercase tracking-wider flex items-center space-x-1.5">
+                        <Sunrise className="w-3.5 h-3.5" />
+                        <span>Morning OPD Patients</span>
+                      </span>
+                      <span className="font-black text-3xl text-amber-900 mt-1 block">{fullDayBoard?.stats.morning || 0}</span>
+                      <span className="text-[11px] text-amber-700/80 mt-0.5 block font-medium">Click to view morning session only</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setFullDayShiftFilter('EVENING'); setFullDayPage(1); }}
+                      className={`text-left p-5 rounded-2xl border transition cursor-pointer ${
+                        fullDayShiftFilter === 'EVENING'
+                          ? 'bg-purple-100/60 border-purple-400 ring-2 ring-purple-500/20 shadow-xs'
+                          : 'bg-purple-50/60 border-purple-200/70 hover:border-purple-300'
+                      }`}
+                    >
+                      <span className="text-purple-800 block text-[11px] font-black uppercase tracking-wider flex items-center space-x-1.5">
+                        <Sunset className="w-3.5 h-3.5" />
+                        <span>Evening OPD Patients</span>
+                      </span>
+                      <span className="font-black text-3xl text-purple-900 mt-1 block">{fullDayBoard?.stats.evening || 0}</span>
+                      <span className="text-[11px] text-purple-700/80 mt-0.5 block font-medium">Click to view evening session only</span>
+                    </button>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    {/* Shift Filter Pills */}
+                    <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-2xl">
+                      <button
+                        type="button"
+                        onClick={() => { setFullDayShiftFilter('ALL'); setFullDayPage(1); }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                          fullDayShiftFilter === 'ALL'
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        All Shifts ({fullDayBoard?.stats.total || 0})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setFullDayShiftFilter('MORNING'); setFullDayPage(1); }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1 ${
+                          fullDayShiftFilter === 'MORNING'
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Sunrise className="w-3.5 h-3.5" />
+                        <span>Morning OPD ({fullDayBoard?.stats.morning || 0})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setFullDayShiftFilter('EVENING'); setFullDayPage(1); }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1 ${
+                          fullDayShiftFilter === 'EVENING'
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Sunset className="w-3.5 h-3.5" />
+                        <span>Evening OPD ({fullDayBoard?.stats.evening || 0})</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center space-x-2 flex-1 max-w-md">
+                      {/* Search */}
+                      <div className="relative flex-1">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          value={fullDaySearch}
+                          onChange={(e) => { setFullDaySearch(e.target.value); setFullDayPage(1); }}
+                          placeholder="Search token #, patient name, phone..."
+                          className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      {/* Status Filter */}
+                      <select
+                        value={fullDayStatusFilter}
+                        onChange={(e) => { setFullDayStatusFilter(e.target.value); setFullDayPage(1); }}
+                        className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="ALL">All Statuses</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="IN_CONSULTATION">In Room</option>
+                        <option value="WAITING">Waiting</option>
+                        <option value="CALLED">Called</option>
+                        <option value="SKIPPED">Skipped</option>
+                        <option value="CANCELLED">Cancelled</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Patient Roster */}
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
+                  <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+                    <h3 className="font-extrabold text-slate-800 text-sm">
+                      Patient Queue Records
+                    </h3>
+                    <span className="text-xs font-semibold text-slate-500">
+                      Showing {filteredFullDayTokens.length === 0 ? 0 : (fullDayPage - 1) * fullDayPageSize + 1} to{' '}
+                      {Math.min(fullDayPage * fullDayPageSize, filteredFullDayTokens.length)} of {filteredFullDayTokens.length} patient(s)
+                    </span>
+                  </div>
+
+                  {loadingFullDay ? (
+                    <div className="p-12 text-center">
+                      <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-2" />
+                      <p className="text-xs font-bold text-slate-600">Loading Full Day Patient Records...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {paginatedFullDayTokens.map((t) => {
+                        const isMorning = t.shiftType === 'MORNING';
+                        return (
+                          <div
+                            key={`${t.sessionId}-${t.id}`}
+                            className="p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-xs transition bg-slate-50/50 flex flex-wrap items-center justify-between gap-4"
+                          >
+                            <div className="flex items-center space-x-4">
+                              <div className="text-center min-w-[56px]">
+                                <span className="text-2xl font-black text-slate-900 block tracking-tight">
+                                  #{t.tokenNumber}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center space-x-0.5 text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                    isMorning
+                                      ? 'bg-amber-100 text-amber-900'
+                                      : 'bg-purple-100 text-purple-900'
+                                  }`}
+                                >
+                                  {isMorning ? <Sunrise className="w-2.5 h-2.5 mr-0.5" /> : <Sunset className="w-2.5 h-2.5 mr-0.5" />}
+                                  <span>{t.shiftLabel}</span>
+                                </span>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <div className="flex items-center space-x-2">
+                                  <h4 className="font-extrabold text-slate-900 text-sm">
+                                    {t.patientName || 'Walk-in Patient'}
+                                  </h4>
+                                  <span
+                                    className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
+                                      t.tokenType === 'ONLINE'
+                                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                        : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                    }`}
+                                  >
+                                    {t.tokenType}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 text-xs text-slate-500">
+                                  {t.patientAge && <span>Age: {t.patientAge} {t.patientGender && `(${t.patientGender})`}</span>}
+                                  {t.patientPhone && <span>Phone: {t.patientPhone}</span>}
+                                  {t.bookingReference && <span className="font-mono text-[11px] text-slate-400">Ref: {t.bookingReference}</span>}
+                                  {t.createdAt && (
+                                    <span>
+                                      Time: {new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  )}
+                                </div>
+                                {t.reasonForVisit && (
+                                  <p className="text-xs text-slate-600 bg-white px-2 py-1 rounded-lg border border-slate-200/70 inline-block mt-1">
+                                    <strong className="text-slate-500 font-semibold">Reason:</strong> {t.reasonForVisit}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-3">
+                              <span
+                                className={`text-xs font-black px-3 py-1 rounded-xl ${
+                                  t.status === 'COMPLETED'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : t.status === 'IN_CONSULTATION'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : t.status === 'CALLED'
+                                    ? 'bg-indigo-100 text-indigo-800 animate-pulse'
+                                    : t.status === 'WAITING'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-slate-200 text-slate-700'
+                                }`}
+                              >
+                                {t.status.replace('_', ' ')}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => setInspectingPatientToken(t)}
+                                className="p-2 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl cursor-pointer transition flex items-center space-x-1 text-xs font-bold border border-slate-200"
+                                title="View Full Patient Record"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>Details</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {filteredFullDayTokens.length === 0 && (
+                        <div className="p-10 text-center text-slate-400 space-y-2">
+                          <Calendar className="w-8 h-8 mx-auto text-slate-300" />
+                          <p className="text-xs font-bold">No patient tokens found matching the filter.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pagination Controls */}
+                  {totalFullDayPages > 1 && (
+                    <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100">
+                      <div className="text-xs text-slate-500 font-medium">
+                        Page <span className="font-bold text-slate-800">{fullDayPage}</span> of{' '}
+                        <span className="font-bold text-slate-800">{totalFullDayPages}</span> ({fullDayPageSize} per page)
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => setFullDayPage(p => Math.max(1, p - 1))}
+                          disabled={fullDayPage <= 1}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                        >
+                          Previous
+                        </button>
+                        {Array.from({ length: totalFullDayPages }, (_, i) => i + 1).map((pg) => {
+                          if (
+                            totalFullDayPages > 7 &&
+                            pg !== 1 &&
+                            pg !== totalFullDayPages &&
+                            Math.abs(pg - fullDayPage) > 1
+                          ) {
+                            if (pg === 2 || pg === totalFullDayPages - 1) {
+                              return <span key={pg} className="px-1 text-slate-400 text-xs">...</span>;
+                            }
+                            return null;
+                          }
+                          return (
+                            <button
+                              key={pg}
+                              type="button"
+                              onClick={() => setFullDayPage(pg)}
+                              className={`w-8 h-8 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                fullDayPage === pg
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'text-slate-600 hover:bg-slate-100 border border-transparent'
+                              }`}
+                            >
+                              {pg}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => setFullDayPage(p => Math.min(totalFullDayPages, p + 1))}
+                          disabled={fullDayPage >= totalFullDayPages}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* When a doctor is selected but has no session in this shift */}
-            {(!selectedSessionId || !queueBoard) && (
+            {activeShift !== 'FULL_DAY' && (!selectedSessionId || !queueBoard) && (
               <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center space-y-4 shadow-xs">
                 <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mx-auto border border-amber-200">
                   {activeShift === 'EVENING' ? <Sunset className="w-8 h-8" /> : <Sunrise className="w-8 h-8" />}
                 </div>
                 <div className="max-w-md mx-auto space-y-1">
                   <h3 className="font-extrabold text-slate-900 text-lg">
-                    {activeShift === 'EVENING' ? 'Evening OPD (5:00 PM - 7:00 PM)' : 'Morning OPD (9:00 AM - 2:00 PM)'} Not Started
+                    {activeShift === 'EVENING' ? 'Evening OPD (5:00 PM - 7:00 PM)' : 'Morning OPD (9:00 AM - 2:00 PM)'} Not Active
                   </h3>
                   <p className="text-xs text-slate-500">
                     {doctors.find(d => d.id === selectedDoctorId)?.name || 'The selected doctor'} does not have an active session for {activeShift === 'EVENING' ? 'Evening' : 'Morning'} OPD today.
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Opening this shift will allocate tokens starting fresh from <strong className="text-emerald-700 underline font-bold">#1</strong>, while keeping all existing shift data completely intact.
+                    You can activate this shift at any time using the Activate button on the doctor card above.
                   </p>
                 </div>
-                {selectedDoctorId && (
-                  <button
-                    type="button"
-                    disabled={startingShift}
-                    onClick={() => handleOpenStartShift(selectedDoctorId, activeShift)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-6 py-3 rounded-2xl text-xs inline-flex items-center space-x-2 shadow-md transition cursor-pointer disabled:opacity-50"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Start {activeShift === 'EVENING' ? 'Evening OPD (Token #1)' : 'Morning OPD (Token #1)'}</span>
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -1909,47 +2375,40 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 {/* Shift Selector & Status for Selected Doctor */}
                 {(() => {
                   const docSessions = sessions.filter(s => s.doctorId === selectedDoctorId);
-                  const activeSession = docSessions.find(s => s.id === (doctorBoard?.sessionId || selectedSessionId)) || docSessions[0];
+                  const currentRoomSessionId = doctorBoard?.sessionId || selectedSessionId;
+                  const activeSession = docSessions.find(s => s.id === currentRoomSessionId) || docSessions[0];
                   return (
                     <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
-                      {/* Existing Shifts for this doctor on selectedDate if multiple */}
+                      {/* Existing Shifts for this doctor on selectedDate */}
                       {docSessions.length > 1 && docSessions.map((s) => {
-                        const isCurrentShift = (doctorBoard?.sessionId === s.id) || (selectedSessionId === s.id);
+                        const isCurrentShift = s.id === currentRoomSessionId;
+                        const isEvening = isEveningSession(s);
                         return (
                           <button
                             key={s.id}
                             type="button"
                             onClick={() => {
-                              setSelectedSessionId(s.id);
-                              loadDoctorRoomBoard(selectedDoctorId, selectedDate, s.id);
+                              switchDoctorShift(selectedDoctorId, isEvening ? 'EVENING' : 'MORNING');
                             }}
-                            className={`px-3 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 border transition cursor-pointer ${
+                            className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 border transition cursor-pointer ${
                               isCurrentShift
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-600/20'
                                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                             }`}
                           >
+                            {isEvening ? <Sunset className="w-3.5 h-3.5" /> : <Sunrise className="w-3.5 h-3.5" />}
                             <span>{s.sessionName}</span>
-                            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${isCurrentShift ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
+                              isCurrentShift
+                                ? 'bg-white/20 text-white'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}>
                               #{s.nextTokenSequence - 1 || 0}
                             </span>
                           </button>
                         );
                       })}
 
-                      {/* Option to start a new shift */}
-                      {docSessions.length > 0 && (
-                        <button
-                          type="button"
-                          disabled={startingShift}
-                          onClick={() => handleOpenStartShift(selectedDoctorId)}
-                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 px-2.5 py-1.5 rounded-xl font-bold flex items-center space-x-1 cursor-pointer transition disabled:opacity-50"
-                          title="Open a new OPD shift starting with Token #1"
-                        >
-                          <Plus className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>+ Open New Shift</span>
-                        </button>
-                      )}
 
                       {/* Active / Inactive Status Badge & Toggle */}
                       {activeSession && (
@@ -1960,9 +2419,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                               <span>Active</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center space-x-1 font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-xl" title={getSessionReopenNote(activeSession.id) || undefined}>
+                            <span className="inline-flex items-center space-x-1 font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-xl">
                               <PauseCircle className="w-3.5 h-3.5 text-amber-600" />
-                              <span className="truncate max-w-[120px]">{getSessionReopenNote(activeSession.id) || 'Paused'}</span>
+                              <span>On Break</span>
                             </span>
                           )}
 
@@ -1975,7 +2434,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-xs'
                             }`}
                           >
-                            {activeSession.status === 'OPEN' ? 'Pause Shift' : 'Activate OPD'}
+                            {activeSession.status === 'OPEN' ? 'Take Break' : 'Resume OPD'}
                           </button>
                         </div>
                       )}
@@ -2182,17 +2641,16 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     No OPD Session Found for {doctors.find(d => d.id === selectedDoctorId)?.name || 'Doctor'} on {selectedDate}
                   </h3>
                   <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                    There are no sessions recorded for this doctor on this date. Start an OPD shift below to begin allocating tokens starting fresh from #1:
+                    There are no sessions recorded for this doctor on this date. OPD sessions are automatically provisioned for active doctors.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                   <button
-                    disabled={startingShift}
-                    onClick={() => handleOpenStartShift(selectedDoctorId)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-3 rounded-2xl text-xs flex items-center space-x-2 shadow-md transition cursor-pointer disabled:opacity-50"
+                    onClick={() => loadSessions(selectedDate, true)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-2.5 rounded-2xl text-xs flex items-center space-x-2 shadow-md transition cursor-pointer"
                   >
-                    <Plus className="w-4 h-4" />
-                    <span>Open OPD Shift (Starts with Token #1)</span>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Reload Sessions</span>
                   </button>
                 </div>
               </div>
@@ -2970,256 +3428,6 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         </div>
       )}
 
-      {/* Session Pause / Deactivation Modal */}
-      {showPauseModal && sessionToPause && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-base">Pause OPD Token Generation</h3>
-                  <p className="text-xs text-slate-500">Temporarily pause token bookings for {sessionToPause.doctorName}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowPauseModal(false);
-                  setSessionToPause(null);
-                }}
-                className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 cursor-pointer"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-xs text-amber-900">
-                <p className="font-bold">When will this OPD token session activate again?</p>
-                <p className="text-[11px] text-amber-700 mt-0.5">
-                  This reopening timing will be clearly displayed on the patient mobile portal so patients know when tokens resume.
-                </p>
-              </div>
-
-              {/* Presets Grid */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-700 block">Select Reopening Shift / Timing:</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPauseReopenPreset('EVENING');
-                      setCustomReopenTime('05:00 PM (Evening OPD)');
-                    }}
-                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2 ${
-                      pauseReopenPreset === 'EVENING'
-                        ? 'bg-amber-50 border-amber-500 text-amber-900 font-bold ring-2 ring-amber-400/30'
-                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    <Sunset className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-[11px]">Evening OPD</div>
-                      <div className="text-[10px] text-slate-500">05:00 PM</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPauseReopenPreset('TOMORROW_MORNING');
-                      setCustomReopenTime('Tomorrow 09:00 AM (Morning OPD)');
-                    }}
-                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2 ${
-                      pauseReopenPreset === 'TOMORROW_MORNING'
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold ring-2 ring-emerald-400/30'
-                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    <Sunrise className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-[11px]">Tomorrow Morning</div>
-                      <div className="text-[10px] text-slate-500">09:00 AM</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPauseReopenPreset('30_MIN');
-                      setCustomReopenTime('In 30 Minutes');
-                    }}
-                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2 ${
-                      pauseReopenPreset === '30_MIN'
-                        ? 'bg-blue-50 border-blue-500 text-blue-900 font-bold ring-2 ring-blue-400/30'
-                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    <Clock className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-[11px]">Short Break</div>
-                      <div className="text-[10px] text-slate-500">In 30 Mins</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPauseReopenPreset('CUSTOM');
-                      setCustomReopenTime('');
-                    }}
-                    className={`p-2.5 rounded-xl border text-left text-xs transition cursor-pointer flex items-center space-x-2 ${
-                      pauseReopenPreset === 'CUSTOM'
-                        ? 'bg-purple-50 border-purple-500 text-purple-900 font-bold ring-2 ring-purple-400/30'
-                        : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    <Edit className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-[11px]">Custom</div>
-                      <div className="text-[10px] text-slate-500">Clear & Type</div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 pt-1">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Reopening Timing / Patient Notice <span className="text-slate-400 font-normal">(Doctor can customize freely)</span>:
-                </label>
-                <input
-                  type="text"
-                  value={customReopenTime}
-                  onChange={(e) => setCustomReopenTime(e.target.value)}
-                  placeholder="e.g. 05:00 PM, 06:30 PM, or In 45 mins"
-                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-                <p className="text-[10px] text-slate-400">
-                  This note will be shown live to patients on their token booking portal.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPauseModal(false);
-                  setSessionToPause(null);
-                }}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={pausingSession}
-                onClick={handleConfirmPauseSession}
-                className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold px-5 py-2 rounded-xl text-xs shadow-md transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {pausingSession ? <span>Pausing...</span> : (
-                  <>
-                    <PauseCircle className="w-4 h-4" />
-                    <span>Confirm & Pause OPD</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* OPD Shift Creation Modal */}
-      {showShiftModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center space-x-2 text-slate-800">
-                <Calendar className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-black text-base">Open New OPD Shift</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowShiftModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 cursor-pointer"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200/80 text-xs text-emerald-900">
-              <p className="font-bold">
-                Doctor: {doctors.find(d => d.id === shiftDoctorId)?.name || 'Doctor'}
-              </p>
-              <p className="text-[11px] text-emerald-700 mt-0.5">
-                Date: {selectedDate} • Tokens for this shift will start fresh from <strong className="underline">#1</strong>.
-              </p>
-            </div>
-
-
-
-            {/* Shift Form Details */}
-            <div className="space-y-3 pt-1">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Shift / Session Name:</label>
-                <input
-                  type="text"
-                  value={shiftForm.sessionName}
-                  onChange={(e) => setShiftForm(prev => ({ ...prev, sessionName: e.target.value }))}
-                  placeholder="e.g. MORNING OPD, EVENING OPD, SPECIAL CLINIC"
-                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-semibold uppercase text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Start Time:</label>
-                  <input
-                    type="time"
-                    value={shiftForm.startTime}
-                    onChange={(e) => setShiftForm(prev => ({ ...prev, startTime: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">End Time:</label>
-                  <input
-                    type="time"
-                    value={shiftForm.endTime}
-                    onChange={(e) => setShiftForm(prev => ({ ...prev, endTime: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setShowShiftModal(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={startingShift}
-                onClick={handleConfirmStartShift}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-2 rounded-xl text-xs shadow-md transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {startingShift ? <span>Starting...</span> : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Confirm & Open OPD Shift</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
