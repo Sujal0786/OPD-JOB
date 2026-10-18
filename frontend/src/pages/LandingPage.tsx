@@ -516,21 +516,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     )}
                   </button>
                 </form>
-
-                {/* Quick 1-Tap Demo Button */}
-                <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Demo Hospital Account</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmailOrUsername('admin@shamcare.com');
-                      setPassword('Hospital@1234');
-                    }}
-                    className="text-emerald-700 hover:text-emerald-800 font-extrabold hover:underline cursor-pointer bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80 active:scale-95"
-                  >
-                    1-Tap Autofill
-                  </button>
-                </div>
               </div>
             )}
           </div>
