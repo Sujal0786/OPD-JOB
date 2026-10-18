@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PatientPortal } from './pages/PatientPortal';
 import { HospitalDashboard } from './pages/HospitalDashboard';
 import { PlatformAdminDashboard } from './pages/PlatformAdminDashboard';
-import { HospitalSelectionPage } from './pages/HospitalSelectionPage';
-import { HospitalAdminLogin } from './pages/HospitalAdminLogin';
+import { LandingPage } from './pages/LandingPage';
 import { api } from './services/api';
 import { LoginResponse } from './types';
 import { ArrowLeft } from 'lucide-react';
@@ -103,9 +102,9 @@ export const App: React.FC = () => {
     }
 
     return (
-      <HospitalAdminLogin
-        onSuccess={handleLoginSuccess}
-        onBackToHome={() => navigate('/')}
+      <LandingPage
+        onLoginSuccess={handleLoginSuccess}
+        onSelectHospital={(slug) => navigate(`/patient?slug=${encodeURIComponent(slug)}`)}
       />
     );
   }
@@ -168,14 +167,12 @@ export const App: React.FC = () => {
     );
   }
 
-  // ROUTE 5: Root URL without hospital slug (/) -> Render Welcome Navbar, Search Slug/Code, Scan QR
+  // ROUTE 5: Root URL without hospital slug (/) -> Render Main Opening Landing Page
   if (!hospitalSlug) {
     return (
-      <HospitalSelectionPage
-        onSelectHospital={(slug) => {
-          navigate(`/patient?slug=${encodeURIComponent(slug)}`);
-        }}
-        onStaffLoginClick={() => navigate('/hospital-admin')}
+      <LandingPage
+        onLoginSuccess={handleLoginSuccess}
+        onSelectHospital={(slug) => navigate(`/patient?slug=${encodeURIComponent(slug)}`)}
       />
     );
   }
