@@ -126,8 +126,8 @@ export const api = {
     patientName: string;
     patientPhone: string;
     patientLocation?: string;
-    patientAge: number;
-    patientGender: string;
+    patientAge?: number;
+    patientGender?: string;
     reasonForVisit?: string;
     idempotencyKey?: string;
   }): Promise<TokenResponse> {

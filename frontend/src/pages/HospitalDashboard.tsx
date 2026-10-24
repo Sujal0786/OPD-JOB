@@ -2132,7 +2132,12 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                                   </span>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-x-3 text-xs text-slate-500">
-                                  {t.patientAge && <span>Age: {t.patientAge} {t.patientGender && `(${t.patientGender})`}</span>}
+                                  {(t.patientAge || t.patientGender) && (
+                                    <span>
+                                      {t.patientAge ? `Age: ${t.patientAge} ` : ''}
+                                      {t.patientGender && (t.patientAge ? `(${t.patientGender})` : `Gender: ${t.patientGender}`)}
+                                    </span>
+                                  )}
                                   {t.patientPhone && <span>Phone: {t.patientPhone}</span>}
                                   {t.bookingReference && <span className="font-mono text-[11px] text-slate-400">Ref: {t.bookingReference}</span>}
                                   {t.createdAt && (
@@ -3257,9 +3262,12 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               </div>
 
               <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">Age & Gender</span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">
+                  {inspectingPatientToken.patientAge ? 'Age & Gender' : 'Gender'}
+                </span>
                 <span className="font-bold text-slate-800 text-xs mt-0.5 block">
-                  {inspectingPatientToken.patientAge ? `${inspectingPatientToken.patientAge} Years` : '—'} • {inspectingPatientToken.patientGender || '—'}
+                  {inspectingPatientToken.patientAge ? `${inspectingPatientToken.patientAge} Years • ` : ''}
+                  {inspectingPatientToken.patientGender || '—'}
                 </span>
               </div>
 

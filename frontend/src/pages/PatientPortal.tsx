@@ -145,8 +145,7 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [patientName, setPatientName] = useState('');
   const [patientPhone, setPatientPhone] = useState('');
   const [patientLocation, setPatientLocation] = useState('');
-  const [patientAge, setPatientAge] = useState('');
-  const [patientGender, setPatientGender] = useState('MALE');
+  const [patientGender, setPatientGender] = useState<'MALE' | 'FEMALE'>('MALE');
   const [reason, setReason] = useState('');
 
   // Token Lookup state for My Token
@@ -440,7 +439,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         patientName: patientName.trim(),
         patientPhone: patientPhone.trim(),
         patientLocation: patientLocation.trim(),
-        patientAge: parseInt(patientAge) || 30,
         patientGender,
         reasonForVisit: reason.trim(),
         idempotencyKey: `online-${hospital.id}-${selectedSession.id}-${patientPhone.trim()}`,
@@ -1450,6 +1448,37 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                           onChange={(e) => setPatientPhone(e.target.value.replace(/\D/g, ''))}
                           className="w-full text-sm font-medium border border-slate-200 rounded-xl px-4 py-3 focus:border-emerald-600 outline-none"
                         />
+                      </div>
+                    </div>
+
+                    {/* Gender Toggle: Male or Female */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        {lang === 'HI' ? 'लिंग (Gender) *' : 'Gender *'}
+                      </label>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setPatientGender('MALE')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 border cursor-pointer ${
+                            patientGender === 'MALE'
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
+                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          <span>👨 {lang === 'HI' ? 'पुरुष (Male)' : 'Male'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPatientGender('FEMALE')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 border cursor-pointer ${
+                            patientGender === 'FEMALE'
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
+                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          <span>👩 {lang === 'HI' ? 'महिला (Female)' : 'Female'}</span>
+                        </button>
                       </div>
                     </div>
 
