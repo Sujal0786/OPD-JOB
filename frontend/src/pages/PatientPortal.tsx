@@ -1451,33 +1451,33 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       </div>
                     </div>
 
-                    {/* Gender Toggle: Male or Female */}
+                    {/* Premium Gender Selection */}
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                        {lang === 'HI' ? 'लिंग (Gender) *' : 'Gender *'}
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        {lang === 'HI' ? 'लिंग / Gender' : 'Gender'} <span className="text-emerald-600">*</span>
                       </label>
-                      <div className="grid grid-cols-2 gap-2.5">
+                      <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200/80 gap-1.5">
                         <button
                           type="button"
                           onClick={() => setPatientGender('MALE')}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 border cursor-pointer ${
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center cursor-pointer ${
                             patientGender === 'MALE'
-                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
-                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                              ? 'bg-white text-emerald-900 shadow-xs border border-slate-200/60 ring-1 ring-black/5'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                           }`}
                         >
-                          <span>👨 {lang === 'HI' ? 'पुरुष (Male)' : 'Male'}</span>
+                          <span>{lang === 'HI' ? 'पुरुष (Male)' : 'Male'}</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setPatientGender('FEMALE')}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 border cursor-pointer ${
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-150 flex items-center justify-center cursor-pointer ${
                             patientGender === 'FEMALE'
-                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
-                              : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                              ? 'bg-white text-emerald-900 shadow-xs border border-slate-200/60 ring-1 ring-black/5'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                           }`}
                         >
-                          <span>👩 {lang === 'HI' ? 'महिला (Female)' : 'Female'}</span>
+                          <span>{lang === 'HI' ? 'महिला (Female)' : 'Female'}</span>
                         </button>
                       </div>
                     </div>
