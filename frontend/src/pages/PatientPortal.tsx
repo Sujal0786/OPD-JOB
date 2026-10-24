@@ -1397,26 +1397,15 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     </div>
                   </div>
 
-                  {/* Walk-in notice banner */}
-                  {selectedSession.totalWalkinCount > 0 ? (
+                  {/* Walk-in notice banner (only shown if walk-ins exist) */}
+                  {selectedSession.totalWalkinCount > 0 && (
                     <div className="bg-blue-950/70 border border-blue-800/60 rounded-xl p-3 text-xs md:text-sm text-blue-200 flex items-center space-x-2.5">
                       <Ticket className="w-4 h-4 text-blue-300 flex-shrink-0" />
                       <span>
                         {selectedSession.totalWalkinCount} Reception Walk-In Patient(s) registered ahead at front desk
                       </span>
                     </div>
-                  ) : (
-                    <div className="bg-emerald-950/70 border border-emerald-800/60 rounded-xl p-3 text-xs md:text-sm text-emerald-200 flex items-center space-x-2.5">
-                      <Sparkles className="w-4 h-4 text-emerald-300 flex-shrink-0" />
-                      <span>
-                        No reception queue waiting • Direct entry when turn is called
-                      </span>
-                    </div>
                   )}
-
-                  <p className="text-xs text-slate-400 text-center leading-relaxed">
-                    {t.directEntry}
-                  </p>
                 </div>
 
                 {/* Patient Input Fields */}
