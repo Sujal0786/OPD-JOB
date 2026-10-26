@@ -40,11 +40,22 @@ public interface OpdTokenRepository extends JpaRepository<OpdToken, UUID> {
     @Query("""
         SELECT t FROM OpdToken t
         WHERE t.hospital.id = :hospitalId
-          AND t.patientPhone = :patientPhone
-          AND t.opdSession.sessionDate = CURRENT_DATE
+          AND (t.patientPhone = :patientPhone OR t.patientPhone LIKE CONCAT('%', :patientPhone))
+          AND (
+            t.opdSession.sessionDate = :today
+            OR (t.opdSession.sessionDate = :yesterday AND t.status IN (
+                com.citycare.platform.modules.queue.TokenStatus.WAITING,
+                com.citycare.platform.modules.queue.TokenStatus.CALLED,
+                com.citycare.platform.modules.queue.TokenStatus.RECEIVED_BY_HOSPITAL
+            ))
+          )
         ORDER BY t.createdAt DESC
     """)
-    List<OpdToken> findTodayTokensByPhone(@Param("hospitalId") UUID hospitalId, @Param("patientPhone") String patientPhone);
+    List<OpdToken> findTodayTokensByPhone(
+            @Param("hospitalId") UUID hospitalId,
+            @Param("patientPhone") String patientPhone,
+            @Param("today") java.time.LocalDate today,
+            @Param("yesterday") java.time.LocalDate yesterday);
 
     @Query("SELECT COUNT(t) FROM OpdToken t WHERE t.opdSession.id = :sessionId AND t.tokenNumber < :tokenNumber AND t.status IN :statuses")
     int countTokensAhead(@Param("sessionId") UUID sessionId,

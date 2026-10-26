@@ -177,4 +177,29 @@ class QueueServiceTest {
         verify(queueRepository, times(1)).findAllBySessionIds(anyCollection());
         verify(queueRepository, never()).findByOpdSessionId(any());
     }
+
+    @Test
+    @DisplayName("getPatientTokensByPhone strips +91 country prefix and passes IST dates")
+    void getPatientTokensByPhone_normalizesPhoneAndPassesIstDates() {
+        OpdToken token = new OpdToken();
+        token.setId(UUID.randomUUID());
+        token.setHospital(hospital);
+        token.setOpdSession(session);
+        token.setTokenNumber(20);
+        token.setPatientPhone("7986076744");
+        token.setStatus(TokenStatus.WAITING);
+
+        when(tokenRepository.findTodayTokensByPhone(eq(hospitalId), eq("7986076744"), any(LocalDate.class), any(LocalDate.class)))
+                .thenReturn(List.of(token));
+        when(queueRepository.findAllBySessionIds(anyCollection())).thenReturn(List.of(queue));
+        when(tokenRepository.countTokensAhead(eq(sessionId), eq(20), anyList())).thenReturn(1);
+
+        List<TokenResponse> responses = queueService.getPatientTokensByPhone(hospitalId, "+91 7986076744");
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getTokenNumber()).isEqualTo(20);
+        assertThat(responses.get(0).getPatientPhone()).isEqualTo("7986076744");
+
+        verify(tokenRepository).findTodayTokensByPhone(eq(hospitalId), eq("7986076744"), any(LocalDate.class), any(LocalDate.class));
+    }
 }

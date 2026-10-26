@@ -22,6 +22,9 @@ spring:
       connection-timeout: 30000
       max-lifetime: 600000
       keepalive-time: 60000
+      connection-init-sql: "SET TIME ZONE 'Asia/Kolkata'"
+  jackson:
+    time-zone: Asia/Kolkata
   jpa:
     hibernate:
       ddl-auto: update

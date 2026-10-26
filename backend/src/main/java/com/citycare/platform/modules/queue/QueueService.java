@@ -423,7 +423,12 @@ public class QueueService {
             throw new ResourceNotFoundException("Phone number is required.");
         }
         String cleanPhone = phone.trim().replaceAll("[^0-9]", "");
-        List<OpdToken> tokens = tokenRepository.findTodayTokensByPhone(hospitalId, cleanPhone);
+        if (cleanPhone.length() > 10) {
+            cleanPhone = cleanPhone.substring(cleanPhone.length() - 10);
+        }
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        LocalDate yesterday = today.minusDays(1);
+        List<OpdToken> tokens = tokenRepository.findTodayTokensByPhone(hospitalId, cleanPhone, today, yesterday);
         if (tokens.isEmpty()) {
             throw new ResourceNotFoundException("No active token found for phone number " + phone + " today.");
         }

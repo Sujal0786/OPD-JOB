@@ -1,5 +1,6 @@
 package com.citycare.platform.common.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import org.slf4j.MDC;
 
@@ -12,6 +13,7 @@ public class ApiResponse<T> {
     private String code;
     private String message;
     private T data;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", timezone = "Asia/Kolkata")
     private Instant timestamp;
     private String traceId;
 
