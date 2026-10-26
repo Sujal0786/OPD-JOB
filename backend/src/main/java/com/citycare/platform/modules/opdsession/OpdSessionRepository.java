@@ -11,6 +11,27 @@ import java.util.UUID;
 @Repository
 public interface OpdSessionRepository extends JpaRepository<OpdSession, UUID> {
     List<OpdSession> findAllByHospitalIdAndSessionDate(UUID hospitalId, LocalDate sessionDate);
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT s FROM OpdSession s
+        JOIN FETCH s.doctor d
+        JOIN FETCH s.hospital h
+        WHERE h.id = :hospitalId AND s.sessionDate = :sessionDate
+    """)
+    List<OpdSession> findAllByHospitalIdAndSessionDateWithDoctorAndHospital(
+            @org.springframework.data.repository.query.Param("hospitalId") UUID hospitalId,
+            @org.springframework.data.repository.query.Param("sessionDate") LocalDate sessionDate);
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT s FROM OpdSession s
+        JOIN FETCH s.doctor d
+        JOIN FETCH s.hospital h
+        WHERE h.id = :hospitalId AND s.sessionDate = :sessionDate AND d.active = true
+    """)
+    List<OpdSession> findPublicByHospitalIdAndSessionDateWithDoctorAndHospital(
+            @org.springframework.data.repository.query.Param("hospitalId") UUID hospitalId,
+            @org.springframework.data.repository.query.Param("sessionDate") LocalDate sessionDate);
+
     List<OpdSession> findAllByHospitalIdAndDoctorIdAndSessionDate(UUID hospitalId, UUID doctorId, LocalDate sessionDate);
     Optional<OpdSession> findByIdAndHospitalId(UUID id, UUID hospitalId);
     Optional<OpdSession> findByHospitalIdAndDoctorIdAndSessionDateAndSessionName(

@@ -244,7 +244,20 @@ public class QueueService {
                 "{\"count\":" + count + ",\"startToken\":" + startNumber + ",\"endToken\":" + endNumber + "}"
         );
 
-        List<TokenResponse> responses = tokens.stream().map(this::buildTokenResponse).toList();
+        int initialAhead = tokenRepository.countTokensAhead(
+                session.getId(),
+                startNumber,
+                List.of(TokenStatus.WAITING, TokenStatus.RECEIVED_BY_HOSPITAL)
+        );
+        Integer currentServing = queue.getCurrentServingToken();
+        int avgWait = session.getDoctor().getAvgConsultationMinutes();
+
+        List<TokenResponse> responses = new ArrayList<>(tokens.size());
+        for (int i = 0; i < tokens.size(); i++) {
+            OpdToken walkIn = tokens.get(i);
+            int tokensAhead = initialAhead + i;
+            responses.add(TokenResponse.fromEntity(walkIn, session, currentServing, tokensAhead, avgWait));
+        }
 
         // Broadcast to live queue screen
         broadcaster.broadcastSessionUpdate(session.getId(), responses.get(responses.size() - 1));
@@ -393,7 +406,8 @@ public class QueueService {
         Page<OpdToken> page = (sessionId != null)
                 ? tokenRepository.searchTokensBySession(hospitalId, sessionId, trimmedQuery, pageable)
                 : tokenRepository.searchTokensAll(hospitalId, trimmedQuery, pageable);
-        return page.map(this::buildTokenResponse);
+        List<TokenResponse> responses = buildTokenResponses(page.getContent());
+        return new org.springframework.data.domain.PageImpl<>(responses, pageable, page.getTotalElements());
     }
 
     @Transactional(readOnly = true)
@@ -413,7 +427,48 @@ public class QueueService {
         if (tokens.isEmpty()) {
             throw new ResourceNotFoundException("No active token found for phone number " + phone + " today.");
         }
-        return tokens.stream().map(this::buildTokenResponse).toList();
+        return buildTokenResponses(tokens);
+    }
+
+    private List<TokenResponse> buildTokenResponses(List<OpdToken> tokens) {
+        if (tokens.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Set<UUID> sessionIds = new HashSet<>();
+        for (OpdToken t : tokens) {
+            if (t.getOpdSession() != null) {
+                sessionIds.add(t.getOpdSession().getId());
+            }
+        }
+
+        Map<UUID, Integer> sessionCurrentServingMap = new HashMap<>();
+        if (!sessionIds.isEmpty()) {
+            List<OpdSessionQueue> queues = queueRepository.findAllBySessionIds(sessionIds);
+            for (OpdSessionQueue q : queues) {
+                sessionCurrentServingMap.put(q.getOpdSession().getId(), q.getCurrentServingToken());
+            }
+        }
+
+        List<TokenResponse> responses = new ArrayList<>(tokens.size());
+        for (OpdToken token : tokens) {
+            UUID sessionId = token.getOpdSession().getId();
+            Integer currentServing = sessionCurrentServingMap.get(sessionId);
+
+            int tokensAhead = 0;
+            if (token.getStatus() == TokenStatus.WAITING) {
+                tokensAhead = tokenRepository.countTokensAhead(
+                        sessionId,
+                        token.getTokenNumber(),
+                        List.of(TokenStatus.WAITING, TokenStatus.RECEIVED_BY_HOSPITAL)
+                );
+            }
+
+            int avgWait = token.getOpdSession().getDoctor().getAvgConsultationMinutes();
+            responses.add(TokenResponse.fromEntity(token, currentServing, tokensAhead, avgWait));
+        }
+
+        return responses;
     }
 
     private TokenResponse buildTokenResponse(OpdToken token) {
@@ -433,17 +488,17 @@ public class QueueService {
         return TokenResponse.fromEntity(token, currentServing, tokensAhead, avgWait);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public QueueBoardDto getDoctorLiveQueue(UUID hospitalId, UUID doctorId) {
         tenantValidator.validateHospitalAccess(hospitalId);
         Doctor doctor = doctorRepository.findByIdAndHospitalId(doctorId, hospitalId)
                 .orElseThrow(() -> new DoctorNotFoundException("Doctor not found in this hospital."));
 
-        OpdSession session = resolveOrCreateTodayDoctorSession(hospitalId, doctor);
+        OpdSession session = resolveTodayDoctorSession(hospitalId, doctor);
         return buildQueueBoardDto(session);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public QueueBoardDto getDoctorLiveQueueByName(UUID hospitalId, String doctorName) {
         tenantValidator.validateHospitalAccess(hospitalId);
         List<Doctor> doctors = doctorRepository.findAllByHospitalIdAndNameContainingIgnoreCase(hospitalId, doctorName.trim());
@@ -453,19 +508,19 @@ public class QueueService {
         return getDoctorLiveQueue(hospitalId, doctors.get(0).getId());
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public QueueBoardDto getDoctorLiveQueueByNamePublic(UUID hospitalId, String doctorName) {
         List<Doctor> doctors = doctorRepository.findAllByHospitalIdAndNameContainingIgnoreCase(hospitalId, doctorName.trim());
         if (doctors.isEmpty()) {
             throw new DoctorNotFoundException("Doctor with name matching '" + doctorName + "' not found in this hospital.");
         }
         Doctor doctor = doctors.get(0);
-        OpdSession session = resolveOrCreateTodayDoctorSession(hospitalId, doctor);
+        OpdSession session = resolveTodayDoctorSession(hospitalId, doctor);
         return buildQueueBoardDto(session);
     }
 
-    private OpdSession resolveOrCreateTodayDoctorSession(UUID hospitalId, Doctor doctor) {
-        LocalDate today = LocalDate.now();
+    private OpdSession resolveTodayDoctorSession(UUID hospitalId, Doctor doctor) {
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
         List<OpdSession> sessions = sessionRepository.findAllByHospitalIdAndDoctorIdAndSessionDate(hospitalId, doctor.getId(), today);
         if (!sessions.isEmpty()) {
             for (OpdSession s : sessions) {
@@ -475,24 +530,7 @@ public class QueueService {
             }
             return sessions.get(0);
         }
-
-        Hospital hospital = hospitalRepository.findById(hospitalId)
-                .orElseThrow(() -> new HospitalNotFoundException("Hospital not found."));
-
-        OpdSession session = new OpdSession(
-                null,
-                hospital,
-                doctor,
-                today,
-                "GENERAL OPD",
-                LocalTime.of(9, 0),
-                LocalTime.of(17, 0),
-                OpdSessionStatus.OPEN
-        );
-        sessionRepository.save(session);
-        OpdSessionQueue queue = new OpdSessionQueue(null, session, hospital);
-        queueRepository.save(queue);
-        return session;
+        throw new ResourceNotFoundException("No active OPD session found for Dr. " + doctor.getName() + " today.");
     }
 
     @Transactional

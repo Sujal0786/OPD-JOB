@@ -63,7 +63,7 @@ public class DoctorService {
     @Transactional
     public DoctorDto createDoctor(UUID hospitalId, DoctorCreateRequest request) {
         tenantValidator.validateHospitalAccess(hospitalId);
-        Hospital hospital = hospitalRepository.findById(hospitalId)
+        Hospital hospital = hospitalRepository.findByIdForUpdate(hospitalId)
                 .orElseThrow(() -> new HospitalNotFoundException("Hospital not found."));
 
         Doctor doctor = new Doctor(
@@ -80,21 +80,9 @@ public class DoctorService {
         );
         doctorRepository.save(doctor);
 
-        // Auto-provision today's OPD session so the doctor is immediately active in queues and patient view
-        LocalDate today = LocalDate.now();
-        OpdSession session = new OpdSession(
-                null,
-                hospital,
-                doctor,
-                today,
-                "GENERAL OPD",
-                LocalTime.of(9, 0),
-                LocalTime.of(17, 0),
-                OpdSessionStatus.OPEN
-        );
-        sessionRepository.save(session);
-        OpdSessionQueue queue = new OpdSessionQueue(null, session, hospital);
-        queueRepository.save(queue);
+        // Auto-provision today's OPD slots (Morning and Evening) so the doctor is immediately active in queues and patient view
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        provisionDoctorDailySlots(hospital, doctor, today);
 
         auditLogService.record(hospital, null, "DOCTOR_CREATED", "Doctor", doctor.getId().toString(), null, "{\"name\":\"" + doctor.getName() + "\"}");
         return DoctorDto.fromEntity(doctor);
@@ -106,6 +94,7 @@ public class DoctorService {
         Doctor doctor = doctorRepository.findByIdAndHospitalId(doctorId, hospitalId)
                 .orElseThrow(() -> new DoctorNotFoundException("Doctor not found in this hospital."));
 
+        boolean wasInactive = !doctor.isActive();
         doctor.setName(request.getName().trim());
         if (request.getPhotoUrl() != null) doctor.setPhotoUrl(request.getPhotoUrl().trim());
         doctor.setSpecialty(request.getSpecialty().trim());
@@ -115,8 +104,55 @@ public class DoctorService {
         doctor.setAvgConsultationMinutes(request.getAvgConsultationMinutes());
 
         doctorRepository.save(doctor);
+
+        // If an inactive doctor is reactivated today, ensure their Morning and Evening slots exist for today
+        if (wasInactive && request.isActive()) {
+            LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+            provisionDoctorDailySlots(doctor.getHospital(), doctor, today);
+        }
+
         auditLogService.record(doctor.getHospital(), null, "DOCTOR_UPDATED", "Doctor", doctorId.toString(), null, "{}");
         return DoctorDto.fromEntity(doctor);
+    }
+
+    private void provisionDoctorDailySlots(Hospital hospital, Doctor doctor, LocalDate sessionDate) {
+        // 1. Morning OPD (09:00 - 14:00, default OPEN)
+        if (sessionRepository.findByHospitalIdAndDoctorIdAndSessionDateAndSessionName(
+                hospital.getId(), doctor.getId(), sessionDate, "MORNING OPD").isEmpty()) {
+            OpdSession morning = new OpdSession(
+                    null,
+                    hospital,
+                    doctor,
+                    sessionDate,
+                    "MORNING OPD",
+                    LocalTime.of(9, 0),
+                    LocalTime.of(14, 0),
+                    OpdSessionStatus.OPEN
+            );
+            sessionRepository.save(morning);
+            if (queueRepository.findByOpdSessionId(morning.getId()).isEmpty()) {
+                queueRepository.save(new OpdSessionQueue(null, morning, hospital));
+            }
+        }
+
+        // 2. Evening OPD (17:00 - 19:00, default PAUSED)
+        if (sessionRepository.findByHospitalIdAndDoctorIdAndSessionDateAndSessionName(
+                hospital.getId(), doctor.getId(), sessionDate, "EVENING OPD").isEmpty()) {
+            OpdSession evening = new OpdSession(
+                    null,
+                    hospital,
+                    doctor,
+                    sessionDate,
+                    "EVENING OPD",
+                    LocalTime.of(17, 0),
+                    LocalTime.of(19, 0),
+                    OpdSessionStatus.PAUSED
+            );
+            sessionRepository.save(evening);
+            if (queueRepository.findByOpdSessionId(evening.getId()).isEmpty()) {
+                queueRepository.save(new OpdSessionQueue(null, evening, hospital));
+            }
+        }
     }
 
     @Transactional(readOnly = true)

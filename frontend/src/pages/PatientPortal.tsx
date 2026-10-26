@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { api } from '../services/api';
+import { api, getTodayIstDateString } from '../services/api';
 import { HospitalProfile, OpdSession, TokenResponse, LoginResponse } from '../types';
 import { 
   Building2, 
@@ -161,27 +161,29 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const sseRef = useRef<EventSource | null>(null);
 
-  // Verifies whether a token is valid for today's active OPD session
+  // Verifies whether a token is valid for today's active OPD session (Asia/Kolkata date)
   const isTokenActiveToday = (token: TokenResponse | null): boolean => {
     if (!token) return false;
     if (token.expired) return false;
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const todayLocal = `${year}-${month}-${day}`;
+    const todayIst = getTodayIstDateString();
 
     if (token.sessionDate) {
-      return token.sessionDate === todayLocal;
+      return token.sessionDate === todayIst;
     }
 
     if (token.createdAt) {
       const created = new Date(token.createdAt);
-      const cYear = created.getFullYear();
-      const cMonth = String(created.getMonth() + 1).padStart(2, '0');
-      const cDay = String(created.getDate()).padStart(2, '0');
-      return `${cYear}-${cMonth}-${cDay}` === todayLocal;
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(created);
+      const cYear = parts.find((p) => p.type === 'year')?.value;
+      const cMonth = parts.find((p) => p.type === 'month')?.value;
+      const cDay = parts.find((p) => p.type === 'day')?.value;
+      return `${cYear}-${cMonth}-${cDay}` === todayIst;
     }
 
     return true;
@@ -247,19 +249,42 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
     loadHospitalData(initialSlug);
   }, [initialSlug]);
 
+  const isRefreshingSessionsRef = useRef(false);
+  const hasPendingRefreshRef = useRef(false);
+  const sessionRequestIdRef = useRef(0);
+
   const refreshSessions = useCallback(async (hId?: string) => {
     const id = hId || hospital?.id;
     if (!id) return;
+
+    if (isRefreshingSessionsRef.current) {
+      // Coalesce: mark that a refresh arrived during the in-flight request
+      hasPendingRefreshRef.current = true;
+      return;
+    }
+
+    isRefreshingSessionsRef.current = true;
+    hasPendingRefreshRef.current = false;
+    const currentReqId = ++sessionRequestIdRef.current;
     try {
       const freshSessions = await api.getPatientTodaySessions(id);
-      setSessions(freshSessions);
-      setSelectedSession((prev) => {
-        if (!prev) return freshSessions[0] || null;
-        const matched = freshSessions.find((s) => s.id === prev.id);
-        return matched || prev;
-      });
+      if (currentReqId === sessionRequestIdRef.current) {
+        setSessions(freshSessions);
+        setSelectedSession((prev) => {
+          if (!prev) return freshSessions[0] || null;
+          const matched = freshSessions.find((s) => s.id === prev.id);
+          return matched || prev;
+        });
+      }
     } catch {
       // Quiet background refresh fallback
+    } finally {
+      isRefreshingSessionsRef.current = false;
+      if (hasPendingRefreshRef.current) {
+        hasPendingRefreshRef.current = false;
+        // Safely execute the queued refresh to avoid losing events
+        refreshSessions(id);
+      }
     }
   }, [hospital?.id]);
 
@@ -273,18 +298,52 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
         targetSlug = params.get('slug') || params.get('hospital') || '';
       }
 
-      let h: HospitalProfile | null = null;
-      if (targetSlug) {
-        h = await api.resolveHospitalBySlug(targetSlug);
-      } else {
+      if (!targetSlug) {
         throw new Error('No hospital specified. Please choose a hospital from the directory.');
       }
 
-      setHospital(h);
-      const sess = await api.getPatientTodaySessions(h.id);
-      setSessions(sess);
-      if (sess.length > 0 && !selectedSession) {
-        setSelectedSession(sess[0]);
+      // Check session cache for immediate warm start
+      const cacheKey = `citycare_cached_hospital_${targetSlug}`;
+      let cachedHospital: HospitalProfile | null = null;
+      try {
+        const cachedRaw = sessionStorage.getItem(cacheKey);
+        if (cachedRaw) {
+          cachedHospital = JSON.parse(cachedRaw);
+          if (cachedHospital?.id) {
+            setHospital(cachedHospital);
+          }
+        }
+      } catch {
+        // Ignore cache parse error
+      }
+
+      let h: HospitalProfile;
+      if (cachedHospital?.id) {
+        // Parallel fetch: refresh hospital profile in background while sessions load immediately
+        const [freshH, sess] = await Promise.all([
+          api.resolveHospitalBySlug(targetSlug),
+          api.getPatientTodaySessions(cachedHospital.id)
+        ]);
+        h = freshH;
+        setHospital(freshH);
+        setSessions(sess);
+        if (sess.length > 0 && !selectedSession) {
+          setSelectedSession(sess[0]);
+        }
+      } else {
+        h = await api.resolveHospitalBySlug(targetSlug);
+        setHospital(h);
+        const sess = await api.getPatientTodaySessions(h.id);
+        setSessions(sess);
+        if (sess.length > 0 && !selectedSession) {
+          setSelectedSession(sess[0]);
+        }
+      }
+
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify(h));
+      } catch {
+        // Ignore storage quota errors
       }
 
       // Check tenant-scoped saved token reference
@@ -349,12 +408,12 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('focus', handleVisibilityOrFocus);
 
-    // 4. Background polling (every 3 seconds when tab is active)
+    // 4. Background fallback polling (every 30 seconds when tab is active and visible)
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         refreshSessions(hospital.id);
       }
-    }, 3000);
+    }, 30000);
 
     return () => {
       if (bc) bc.close();

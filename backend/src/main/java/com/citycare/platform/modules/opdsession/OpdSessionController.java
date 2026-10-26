@@ -50,6 +50,14 @@ public class OpdSessionController {
         return ResponseEntity.ok(ApiResponse.ok("SESSION_CREATED", "OPD Session opened successfully.", created));
     }
 
+    @PostMapping("/initialize-today")
+    @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'SUPER_ADMIN')")
+    @Operation(summary = "Deliberately initialize today's OPD sessions for active doctors")
+    public ResponseEntity<ApiResponse<List<OpdSessionDto>>> initializeTodaySessions(@PathVariable UUID hospitalId) {
+        List<OpdSessionDto> sessions = sessionService.provisionTodaySessions(hospitalId);
+        return ResponseEntity.ok(ApiResponse.ok("SESSIONS_INITIALIZED", "OPD Sessions initialized for today.", sessions));
+    }
+
     @PatchMapping("/{sessionId}/status")
     @PreAuthorize("hasAnyRole('HOSPITAL_ADMIN', 'RECEPTIONIST', 'DOCTOR', 'NURSE', 'SUPER_ADMIN')")
     @Operation(summary = "Change OPD session status (OPEN, PAUSED, CLOSED)")

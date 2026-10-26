@@ -15,6 +15,9 @@ public interface OpdSessionQueueRepository extends JpaRepository<OpdSessionQueue
 
     Optional<OpdSessionQueue> findByOpdSessionId(UUID opdSessionId);
 
+    @Query("SELECT q FROM OpdSessionQueue q WHERE q.opdSession.id IN :sessionIds")
+    java.util.List<OpdSessionQueue> findAllBySessionIds(@Param("sessionIds") java.util.Collection<UUID> sessionIds);
+
     /**
      * Acquires a pessimistic write lock (SELECT ... FOR UPDATE) on the queue row.
      * This coordinates all concurrent online and walk-in token allocation transactions.

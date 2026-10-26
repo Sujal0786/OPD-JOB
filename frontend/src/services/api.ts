@@ -16,6 +16,43 @@ const RAW_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_
 const BACKEND_URL = RAW_BASE.replace(/\/$/, '');
 const API_BASE = BACKEND_URL ? `${BACKEND_URL}/api/v1` : '/api/v1';
 
+/**
+ * Formats the current date in the Asia/Kolkata timezone (YYYY-MM-DD),
+ * matching the backend's ZoneId.of("Asia/Kolkata") calendar date.
+ */
+export const getTodayIstDateString = (): string => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Formats yesterday's date in the Asia/Kolkata timezone (YYYY-MM-DD).
+ */
+export const getYesterdayIstDateString = (): string => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+};
+
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'opd_access_token',
   REFRESH_TOKEN: 'opd_refresh_token',
@@ -289,6 +326,13 @@ export const api = {
   async getSessionsByDate(hospitalId: string, date: string): Promise<OpdSession[]> {
     const res = await fetchWithAuth(`${API_BASE}/hospitals/${hospitalId}/sessions?date=${encodeURIComponent(date)}`);
     return parseJsonResponse<OpdSession[]>(res, 'Failed to load sessions for selected date');
+  },
+
+  async initializeTodaySessions(hospitalId: string): Promise<OpdSession[]> {
+    const res = await fetchWithAuth(`${API_BASE}/hospitals/${hospitalId}/sessions/initialize-today`, {
+      method: 'POST',
+    });
+    return parseJsonResponse<OpdSession[]>(res, 'Failed to initialize today sessions');
   },
 
   async createSession(hospitalId: string, payload: {

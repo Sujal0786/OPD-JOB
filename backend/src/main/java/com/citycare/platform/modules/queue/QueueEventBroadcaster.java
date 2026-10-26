@@ -86,6 +86,9 @@ public class QueueEventBroadcaster {
                     }
                 }
             }
+            if (emitters.isEmpty()) {
+                sessionEmitters.remove(sessionId, emitters);
+            }
         }
     }
 
@@ -102,6 +105,9 @@ public class QueueEventBroadcaster {
                         it.remove();
                     }
                 }
+            }
+            if (emitters.isEmpty()) {
+                patientEmitters.remove(bookingReference, emitters);
             }
         }
     }
@@ -127,19 +133,25 @@ public class QueueEventBroadcaster {
                 }
             }
         }
+        map.entrySet().removeIf(entry -> {
+            List<SseEmitter> list = entry.getValue();
+            synchronized (list) {
+                return list.isEmpty();
+            }
+        });
     }
 
     private void removeSessionEmitter(UUID sessionId, SseEmitter emitter) {
-        List<SseEmitter> list = sessionEmitters.get(sessionId);
-        if (list != null) {
+        sessionEmitters.computeIfPresent(sessionId, (key, list) -> {
             list.remove(emitter);
-        }
+            return list.isEmpty() ? null : list;
+        });
     }
 
     private void removePatientEmitter(String bookingRef, SseEmitter emitter) {
-        List<SseEmitter> list = patientEmitters.get(bookingRef);
-        if (list != null) {
+        patientEmitters.computeIfPresent(bookingRef, (key, list) -> {
             list.remove(emitter);
-        }
+            return list.isEmpty() ? null : list;
+        });
     }
 }

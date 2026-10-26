@@ -28,6 +28,16 @@ public interface OpdTokenRepository extends JpaRepository<OpdToken, UUID> {
     int countByOpdSessionIdAndStatus(UUID opdSessionId, TokenStatus status);
 
     @Query("""
+        SELECT t.opdSession.id, t.status, COUNT(t)
+        FROM OpdToken t
+        WHERE t.opdSession.id IN :sessionIds AND t.status IN :statuses
+        GROUP BY t.opdSession.id, t.status
+    """)
+    List<Object[]> countTokensBySessionIdsAndStatuses(
+            @Param("sessionIds") Collection<UUID> sessionIds,
+            @Param("statuses") Collection<TokenStatus> statuses);
+
+    @Query("""
         SELECT t FROM OpdToken t
         WHERE t.hospital.id = :hospitalId
           AND t.patientPhone = :patientPhone

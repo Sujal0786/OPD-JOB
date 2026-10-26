@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { api } from '../services/api';
+import { api, getTodayIstDateString, getYesterdayIstDateString } from '../services/api';
 import { Doctor, LoginResponse, OpdSession, QueueBoard, TokenResponse, TokenStatus } from '../types';
 import { 
   Building2, 
@@ -248,23 +248,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   // QR / Link state
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Date / Period Filter State
-  const getTodayString = () => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const getYesterdayString = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  // Date / Period Filter State (aligned with backend Asia/Kolkata timezone)
+  const getTodayString = () => getTodayIstDateString();
+  const getYesterdayString = () => getYesterdayIstDateString();
 
   const todayStr = useMemo(() => getTodayString(), []);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
@@ -280,6 +266,11 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   } | null>(null);
 
   const sseRef = useRef<EventSource | null>(null);
+  const isRefreshingDataRef = useRef<boolean>(false);
+  const sessionRequestIdRef = useRef<number>(0);
+  const queueBoardRequestIdRef = useRef<number>(0);
+  const loadSessionsRequestIdRef = useRef<number>(0);
+  const refreshDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Real-time Arrival Alert State & Chime Synthesizer
   const [latestArrival, setLatestArrival] = useState<ArrivalAlert | null>(null);
@@ -431,24 +422,42 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
   // Pure session list fetcher (zero selection mutation)
   const fetchSessionsOnly = async (targetDate: string = selectedDate) => {
+    const reqId = ++sessionRequestIdRef.current;
     try {
       const data = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
-      setSessions(data);
+      if (reqId === sessionRequestIdRef.current) {
+        setSessions(data);
+      }
     } catch (err: unknown) {
       console.error('Background sessions fetch failed:', err);
     }
   };
 
   const loadSessions = async (targetDate: string = selectedDate, showSpinner: boolean = false) => {
+    const reqId = ++loadSessionsRequestIdRef.current;
     try {
       if (showSpinner) setLoading(true);
       setError(null);
-      const data = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
-      setSessions(data);
+      let data = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
+      const todayStr = getTodayIstDateString();
+      if (data.length === 0 && targetDate === todayStr) {
+        try {
+          data = await api.initializeTodaySessions(currentUser.hospitalId);
+        } catch (initErr) {
+          console.warn('Deliberate today session initialization skipped or already present:', initErr);
+        }
+      }
+      if (reqId === loadSessionsRequestIdRef.current) {
+        setSessions(data);
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load sessions');
+      if (reqId === loadSessionsRequestIdRef.current) {
+        setError(err instanceof Error ? err.message : 'Failed to load sessions');
+      }
     } finally {
-      if (showSpinner) setLoading(false);
+      if (showSpinner && reqId === loadSessionsRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -639,21 +648,38 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     const sse = new EventSource(api.getStreamUrl(ssePath));
     sseRef.current = sse;
 
-    const refreshActiveData = () => {
-      // 1. Refresh queue board for the active session (without spinner)
-      if (selectedSessionIdRef.current) {
-        loadQueueBoard(selectedSessionIdRef.current, false);
+    const refreshActiveData = async () => {
+      if (isRefreshingDataRef.current) return;
+      isRefreshingDataRef.current = true;
+      try {
+        const promises: Promise<unknown>[] = [];
+        // 1. Refresh queue board for the active session (without spinner)
+        if (selectedSessionIdRef.current) {
+          promises.push(loadQueueBoard(selectedSessionIdRef.current, false));
+        }
+        // 2. Pure background sync of sessions (zero selection mutation)
+        promises.push(fetchSessionsOnly(selectedDate));
+        // 3. Refresh Full Day history if in full day view
+        if (activeShiftRef.current === 'FULL_DAY' && selectedDoctorIdRef.current) {
+          promises.push(loadFullDayHistory(selectedDoctorIdRef.current, false));
+        }
+        // 4. Only refresh Doctor Room Board if user is currently inside DOCTOR_ROOM tab
+        if (activeTabRef.current === 'DOCTOR_ROOM' && selectedDoctorIdRef.current) {
+          promises.push(loadDoctorRoomBoard(selectedDoctorIdRef.current, selectedDate, undefined, false));
+        }
+        await Promise.allSettled(promises);
+      } finally {
+        isRefreshingDataRef.current = false;
       }
-      // 2. Pure background sync of sessions (zero selection mutation)
-      fetchSessionsOnly(selectedDate);
-      // 3. Refresh Full Day history if in full day view
-      if (activeShiftRef.current === 'FULL_DAY' && selectedDoctorIdRef.current) {
-        loadFullDayHistory(selectedDoctorIdRef.current, false);
+    };
+
+    const scheduleActiveDataRefresh = () => {
+      if (refreshDebounceTimerRef.current) {
+        clearTimeout(refreshDebounceTimerRef.current);
       }
-      // 4. Only refresh Doctor Room Board if user is currently inside DOCTOR_ROOM tab
-      if (activeTabRef.current === 'DOCTOR_ROOM' && selectedDoctorIdRef.current) {
-        loadDoctorRoomBoard(selectedDoctorIdRef.current, selectedDate, undefined, false);
-      }
+      refreshDebounceTimerRef.current = setTimeout(() => {
+        refreshActiveData();
+      }, 150);
     };
 
     sse.addEventListener('QUEUE_UPDATED', (event: MessageEvent) => {
@@ -676,7 +702,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
           }
         }
       } catch (_) {}
-      refreshActiveData();
+      scheduleActiveDataRefresh();
     });
 
     sse.onerror = () => {
@@ -701,7 +727,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               if (event.data.id) knownTokenIdsRef.current.add(event.data.id);
               triggerArrivalAlert(event.data.tokenNumber, event.data.patientName, event.data.tokenType, event.data.doctorName);
             }
-            refreshActiveData();
+            scheduleActiveDataRefresh();
           }
         };
       } catch (e) {
@@ -713,7 +739,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     const tenantStorageKey = `opd_last_token_sync_${currentUser.hospitalId}`;
     const handleStorage = (e: StorageEvent) => {
       if (e.key === tenantStorageKey || e.key === 'opd_last_token_sync' || e.key === 'citycare_last_token_sync') {
-        refreshActiveData();
+        scheduleActiveDataRefresh();
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -727,14 +753,17 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('focus', handleVisibilityOrFocus);
 
-    // E. Short Heartbeat Poller (every 2 seconds for real-time live data without refresh)
+    // E. Fallback Heartbeat Poller (25 seconds fallback when SSE is idle)
     const poller = setInterval(() => {
       if (document.visibilityState === 'visible') {
         refreshActiveData();
       }
-    }, 2000);
+    }, 25000);
 
     return () => {
+      if (refreshDebounceTimerRef.current) {
+        clearTimeout(refreshDebounceTimerRef.current);
+      }
       sse.close();
       if (bc) bc.close();
       window.removeEventListener('storage', handleStorage);
@@ -745,11 +774,12 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   }, [selectedSessionId, currentUser.hospitalId, selectedDate]);
 
   const loadQueueBoard = async (sessionId: string, showSpinner = true) => {
+    const reqId = ++queueBoardRequestIdRef.current;
     try {
       if (showSpinner) setLoading(true);
       setError(null);
       const board = await api.getQueueBoard(currentUser.hospitalId, sessionId);
-      if (selectedSessionIdRef.current !== sessionId) return;
+      if (reqId !== queueBoardRequestIdRef.current || selectedSessionIdRef.current !== sessionId) return;
       setQueueBoard(board);
 
       if (board && board.activeTokens) {
