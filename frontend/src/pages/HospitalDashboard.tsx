@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api, getTodayIstDateString, getYesterdayIstDateString } from '../services/api';
-import { Doctor, LoginResponse, OpdSession, QueueBoard, TokenResponse, TokenStatus } from '../types';
+import { Doctor, LoginResponse, OpdSession, OpdSessionStatus, QueueBoard, TokenResponse, TokenStatus } from '../types';
 import { 
   Building2, 
   Users, 
@@ -160,6 +160,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   const [fullDayShiftFilter, setFullDayShiftFilter] = useState<'ALL' | 'MORNING' | 'EVENING'>('ALL');
 
   // Doctors list & management state
+  const tabIdRef = useRef<string>(Math.random().toString(36).substring(2, 9));
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [showDoctorModal, setShowDoctorModal] = useState(false);
@@ -336,60 +337,58 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     localStorage.setItem(`citycare_selected_doctor_${currentUser.hospitalId}`, docId);
 
     const docSessions = sessions.filter(s => s.doctorId === docId);
-    const morningS = docSessions.find(s => isMorningSession(s));
-    const eveningS = docSessions.find(s => isEveningSession(s));
+    const targetSession = targetShift === 'EVENING'
+      ? docSessions.find(s => isEveningSession(s))
+      : docSessions.find(s => isMorningSession(s));
+
+    if (!targetSession) return;
+
+    const previousSessions = [...sessions];
+    const previousShift = activeShift;
+
+    // 1. Instant 0ms Optimistic UI Switch:
+    setActiveShift(targetShift);
+    activeShiftRef.current = targetShift;
+    setSelectedSessionId(targetSession.id);
+    selectedSessionIdRef.current = targetSession.id;
+    localStorage.setItem(`citycare_active_shift_${currentUser.hospitalId}`, targetShift);
+
+    // Optimistically mark target shift as OPEN and opposite shift as CLOSED / PAUSED
+    setSessions(prev => prev.map(s => {
+      if (s.doctorId !== docId) return s;
+      if (s.id === targetSession.id) return { ...s, status: 'OPEN' };
+      return { ...s, status: targetShift === 'EVENING' ? 'CLOSED' : 'PAUSED' };
+    }));
 
     try {
-      if (targetShift === 'EVENING') {
-        // 1. Close this doctor's morning session
-        if (morningS && morningS.status !== 'CLOSED') {
-          await api.updateSessionStatus(currentUser.hospitalId, morningS.id, 'CLOSED');
+      // 2. Single background network call: backend automatically updates the opposite shift in one atomic transaction!
+      const updated = await api.updateSessionStatus(currentUser.hospitalId, targetSession.id, 'OPEN');
+
+      // Update state with server authoritative DTO
+      setSessions(prev => prev.map(s => {
+        if (s.id === targetSession.id) return updated;
+        if (s.doctorId === docId && s.id !== targetSession.id) {
+          return { ...s, status: targetShift === 'EVENING' ? 'CLOSED' : 'PAUSED' };
         }
-        // 2. Open this doctor's evening session
-        if (eveningS) {
-          await api.updateSessionStatus(currentUser.hospitalId, eveningS.id, 'OPEN');
-        }
-        setActiveShift('EVENING');
-        activeShiftRef.current = 'EVENING';
-        localStorage.setItem(`citycare_active_shift_${currentUser.hospitalId}`, 'EVENING');
-        if (eveningS) {
-          setSelectedSessionId(eveningS.id);
-          selectedSessionIdRef.current = eveningS.id;
-          await loadQueueBoard(eveningS.id, false);
-          if (activeTabRef.current === 'DOCTOR_ROOM') {
-            await loadDoctorRoomBoard(docId, selectedDate, eveningS.id, false);
-          }
-        }
-      } else {
-        // MORNING
-        // 1. Pause this doctor's evening session if open
-        if (eveningS && eveningS.status === 'OPEN') {
-          await api.updateSessionStatus(currentUser.hospitalId, eveningS.id, 'PAUSED');
-        }
-        // 2. Open this doctor's morning session
-        if (morningS) {
-          await api.updateSessionStatus(currentUser.hospitalId, morningS.id, 'OPEN');
-        }
-        setActiveShift('MORNING');
-        activeShiftRef.current = 'MORNING';
-        localStorage.setItem(`citycare_active_shift_${currentUser.hospitalId}`, 'MORNING');
-        if (morningS) {
-          setSelectedSessionId(morningS.id);
-          selectedSessionIdRef.current = morningS.id;
-          await loadQueueBoard(morningS.id, false);
-          if (activeTabRef.current === 'DOCTOR_ROOM') {
-            await loadDoctorRoomBoard(docId, selectedDate, morningS.id, false);
-          }
-        }
+        return s;
+      }));
+
+      // 3. Load only the queue board for the target session in background
+      await loadQueueBoard(targetSession.id, false);
+      if (activeTabRef.current === 'DOCTOR_ROOM') {
+        await loadDoctorRoomBoard(docId, selectedDate, targetSession.id, false);
       }
 
-      await loadSessions(selectedDate, false);
       notifyQueueSync({
         action: 'DOCTOR_SHIFT_SWITCHED',
         doctorId: docId,
         shift: targetShift,
       });
     } catch (err: unknown) {
+      // Rollback on network failure
+      setSessions(previousSessions);
+      setActiveShift(previousShift);
+      activeShiftRef.current = previousShift;
       alert(err instanceof Error ? err.message : 'Failed to switch doctor shift');
     }
   };
@@ -541,26 +540,20 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       }
       fullDayDoctorIdRef.current = docId;
 
-      // Fetch fresh sessions for the date without calling setSessions to prevent cascading trigger loops
-      const dateSessions = await api.getSessionsByDate(currentUser.hospitalId, selectedDate);
+      // 1. Reuse existing sessions in state if available, or fetch if empty
+      let docSessions = sessions.filter(s => s.doctorId === docId);
+      if (docSessions.length === 0) {
+        const dateSessions = await api.getSessionsByDate(currentUser.hospitalId, selectedDate);
+        docSessions = dateSessions.filter(s => s.doctorId === docId);
+      }
 
-      const docSessions = dateSessions.filter(s => s.doctorId === docId);
       const morningSess = docSessions.find(s => isMorningSession(s));
       const eveningSess = docSessions.find(s => isEveningSession(s));
 
-      let mBoard: QueueBoard | null = null;
-      let eBoard: QueueBoard | null = null;
-
-      if (morningSess) {
-        try {
-          mBoard = await api.getQueueBoard(currentUser.hospitalId, morningSess.id);
-        } catch (_) {}
-      }
-      if (eveningSess) {
-        try {
-          eBoard = await api.getQueueBoard(currentUser.hospitalId, eveningSess.id);
-        } catch (_) {}
-      }
+      const [mBoard, eBoard] = await Promise.all([
+        morningSess ? api.getQueueBoard(currentUser.hospitalId, morningSess.id).catch(() => null) : Promise.resolve(null),
+        eveningSess ? api.getQueueBoard(currentUser.hospitalId, eveningSess.id).catch(() => null) : Promise.resolve(null),
+      ]);
 
       // Concurrency check: if user switched to another doctor while fetching, ignore this stale response
       if (selectedDoctorIdRef.current !== docId) return;
@@ -716,6 +709,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       try {
         bc = new BroadcastChannel(tenantChannelName);
         bc.onmessage = (event) => {
+          if (event.data?.sourceTabId === tabIdRef.current) return;
           if (event.data?.type === 'TOKEN_CREATED') {
             const tokenId = event.data.tokenId || event.data.id || (event.data.tokenNumber ? `${event.data.sessionId}_${event.data.tokenNumber}` : null);
             if (
@@ -739,6 +733,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
     const tenantStorageKey = `opd_last_token_sync_${currentUser.hospitalId}`;
     const handleStorage = (e: StorageEvent) => {
       if (e.key === tenantStorageKey || e.key === 'opd_last_token_sync' || e.key === 'citycare_last_token_sync') {
+        if (e.newValue && e.newValue.startsWith(tabIdRef.current)) return;
         scheduleActiveDataRefresh();
       }
     };
@@ -843,9 +838,14 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         return;
       }
 
-      // Query sessions for this doctor on targetDate
-      const dateSessions = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
-      const docSessions = dateSessions.filter(s => s.doctorId === docId);
+      // 1. Check if we already have sessions in React state
+      let docSessions = sessions.filter(s => s.doctorId === docId);
+
+      // 2. Only fetch from network if empty
+      if (docSessions.length === 0) {
+        const dateSessions = await api.getSessionsByDate(currentUser.hospitalId, targetDate);
+        docSessions = dateSessions.filter(s => s.doctorId === docId);
+      }
 
       if (docSessions.length > 0) {
         // Match existing selectedSessionId, or first OPEN, or latest session
@@ -873,22 +873,26 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   };
 
   const handleToggleSessionStatus = async (session: OpdSession) => {
+    const newStatus: OpdSessionStatus = session.status === 'OPEN' ? 'PAUSED' : 'OPEN';
+
+    // 1. Instant 0ms Optimistic UI Update
+    setSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: newStatus } : s));
+
     try {
-      const newStatus = session.status === 'OPEN' ? 'PAUSED' : 'OPEN';
-      await api.updateSessionStatus(currentUser.hospitalId, session.id, newStatus);
-      await loadSessions(selectedDate);
-      if (activeTab === 'DOCTOR_ROOM' && selectedDoctorId) {
-        await loadDoctorRoomBoard(selectedDoctorId, selectedDate, session.id);
-      } else if (selectedSessionId) {
-        await loadQueueBoard(session.id, false);
-      }
+      // 2. Single background call (updates DB and returns updated DTO)
+      const updated = await api.updateSessionStatus(currentUser.hospitalId, session.id, newStatus);
+
+      // 3. Reconcile with authoritative server DTO
+      setSessions(prev => prev.map(s => s.id === session.id ? updated : s));
+
+      // 4. Notify other tabs without self-loop
       notifyQueueSync({ sessionId: session.id, status: newStatus, action: 'STATUS_UPDATED' });
     } catch (err: unknown) {
+      // Rollback on failure
+      setSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: session.status } : s));
       alert(err instanceof Error ? err.message : 'Failed to update session status');
     }
   };
-
-
 
   const notifyQueueSync = (extraPayload: Record<string, unknown> = {}) => {
     try {
@@ -897,6 +901,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         bc.postMessage({
           type: 'QUEUE_UPDATED',
           hospitalId: currentUser.hospitalId,
+          sourceTabId: tabIdRef.current,
           timestamp: Date.now(),
           ...extraPayload,
         });
@@ -904,7 +909,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
       }
     } catch (_) {}
     try {
-      localStorage.setItem(`opd_last_token_sync_${currentUser.hospitalId}`, `${Date.now()}`);
+      localStorage.setItem(`opd_last_token_sync_${currentUser.hospitalId}`, `${tabIdRef.current}_${Date.now()}`);
     } catch (_) {}
   };
 
@@ -2331,7 +2336,6 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       setSelectedDoctorId(newDocId);
                       selectedDoctorIdRef.current = newDocId;
                       setLatestArrival(null);
-                      loadDoctorRoomBoard(newDocId, selectedDate);
                     }}
                     className="px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
