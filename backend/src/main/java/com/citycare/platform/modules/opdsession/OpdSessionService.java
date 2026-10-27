@@ -218,9 +218,10 @@ public class OpdSessionService {
         // If activating a shift, ensure the other shift for this doctor on the same date is not left OPEN
         if (status == OpdSessionStatus.OPEN && session.getSessionName() != null) {
             boolean isEvening = session.getSessionName().toUpperCase().contains("EVENING");
-            List<OpdSession> docSessions = sessionRepository.findAllByHospitalIdAndSessionDate(hospitalId, session.getSessionDate());
+            List<OpdSession> docSessions = sessionRepository.findAllByHospitalIdAndDoctorIdAndSessionDate(
+                    hospitalId, session.getDoctor().getId(), session.getSessionDate());
             for (OpdSession other : docSessions) {
-                if (other.getDoctor().getId().equals(session.getDoctor().getId()) && !other.getId().equals(session.getId())) {
+                if (!other.getId().equals(session.getId())) {
                     if (isEvening && other.getStatus() == OpdSessionStatus.OPEN) {
                         other.setStatus(OpdSessionStatus.CLOSED);
                         sessionRepository.save(other);

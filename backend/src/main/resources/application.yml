@@ -16,10 +16,10 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
+      maximum-pool-size: 15
+      minimum-idle: 5
       idle-timeout: 300000
-      connection-timeout: 30000
+      connection-timeout: 15000
       max-lifetime: 600000
       keepalive-time: 60000
       connection-init-sql: "SET TIME ZONE 'Asia/Kolkata'"

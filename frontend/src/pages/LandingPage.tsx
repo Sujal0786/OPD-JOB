@@ -1,29 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../services/api';
 import { LoginResponse } from '../types';
-import { 
-  Building2, 
-  ArrowRight, 
-  Eye, 
-  EyeOff, 
-  Plus, 
-  LayoutGrid, 
-  Clock, 
-  HeartPulse, 
-  ShieldCheck, 
-  QrCode, 
-  Camera, 
-  Upload, 
-  AlertCircle, 
-  X,
-  Phone,
-  Mail,
-  HelpCircle,
+import {
+  Eye,
+  EyeOff,
+  AlertCircle,
   Stethoscope,
-  Sparkles,
-  CheckCircle2,
+  ShieldCheck,
+  LayoutGrid,
+  Clock,
+  HeartPulse,
   Activity,
-  ArrowUpRight
+  ArrowRight,
+  Building2,
+  Users,
+  Zap,
+  Lock,
+  CheckCircle2,
+  Star,
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -31,43 +25,29 @@ interface LandingPageProps {
   onSelectHospital: (slug: string) => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({
-  onLoginSuccess,
-  onSelectHospital,
-}) => {
-  // Mobile active view tab: 'STAFF' | 'PATIENT'
-  const [mobileTab, setMobileTab] = useState<'STAFF' | 'PATIENT'>('STAFF');
-
-  // Staff Login Form state
+export const LandingPage: React.FC<LandingPageProps> = ({ onLoginSuccess }) => {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
 
-  // QR Scanner modal state
-  const [showScanner, setShowScanner] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [scannerStatus, setScannerStatus] = useState<string>('Point camera at QR code');
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Animated visibility for stats
+  const [statsVisible, setStatsVisible] = useState(false);
+  const statsRef = useRef<HTMLDivElement | null>(null);
 
-  // Support Modal state
-  const [showSupportModal, setShowSupportModal] = useState(false);
-
-  // Interactive selected feature card for mobile sheet/toast
-  const [activeFeature, setActiveFeature] = useState<number | null>(null);
-
-  const focusLoginForm = () => {
-    setMobileTab('STAFF');
-    setTimeout(() => {
-      usernameInputRef.current?.focus();
-      usernameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 50);
-  };
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setStatsVisible(true);
+      },
+      { threshold: 0.3 }
+    );
+    if (statsRef.current) observer.observe(statsRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,717 +57,536 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       const res = await api.login(emailOrUsername.trim(), password);
       onLoginSuccess(res);
     } catch (err: unknown) {
-      setLoginError(err instanceof Error ? err.message : 'Invalid credentials. Please verify your hospital staff email and password.');
+      setLoginError(
+        err instanceof Error
+          ? err.message
+          : 'Invalid credentials. Please verify your hospital staff email and password.'
+      );
     } finally {
       setLoginLoading(false);
     }
   };
 
-  const handleResolveHospital = async (query: string) => {
-    const clean = query.trim();
-    if (!clean) return;
+  const features = [
+    {
+      icon: LayoutGrid,
+      title: 'Smart Queue Management',
+      desc: 'Handle multiple OPD sessions & shifts effortlessly',
+    },
+    {
+      icon: Clock,
+      title: 'Real-time Updates',
+      desc: 'Live token status, alerts & instant sync',
+    },
+    {
+      icon: HeartPulse,
+      title: 'Better Patient Care',
+      desc: 'Reduce wait times & improve care delivery',
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Secure & Compliant',
+      desc: '256-bit SSL, encrypted data isolation',
+    },
+  ];
 
-    try {
-      setCameraError(null);
-
-      let candidate = clean;
-      if (candidate.includes('slug=')) {
-        const urlParams = new URLSearchParams(candidate.split('?')[1]);
-        candidate = urlParams.get('slug') || candidate;
-      } else if (candidate.includes('/h/')) {
-        candidate = candidate.split('/h/')[1].split('/')[0].split('?')[0];
-      } else if (candidate.includes('/patient/')) {
-        candidate = candidate.split('/patient/')[1].split('/')[0].split('?')[0];
-      }
-
-      // Check if 6-digit access code (digits only)
-      if (/^\d{6}$/.test(candidate)) {
-        const hospital = await api.resolveHospitalByCode(candidate);
-        if (hospital?.slug) {
-          onSelectHospital(hospital.slug);
-          return;
-        }
-      }
-
-      // Resolve by slug
-      const hospital = await api.resolveHospitalBySlug(candidate);
-      if (hospital?.slug) {
-        onSelectHospital(hospital.slug);
-        return;
-      }
-
-      throw new Error(`Hospital not recognized from QR code: "${clean}"`);
-    } catch (err: unknown) {
-      setCameraError(err instanceof Error ? err.message : 'Hospital not found from QR code.');
-    }
-  };
-
-  const stopCameraStream = () => {
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
-      mediaStreamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  const startCameraStream = async () => {
-    setCameraError(null);
-    setScannerStatus('Starting camera...');
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera access is not supported on this browser or device.');
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute('playsinline', 'true');
-        await videoRef.current.play();
-      }
-      setScannerStatus('Align QR code within the frame to scan');
-
-      // Native BarcodeDetector auto-detection loop
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ('BarcodeDetector' in window) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-        scanIntervalRef.current = setInterval(async () => {
-          if (videoRef.current && videoRef.current.readyState >= 2) {
-            try {
-              const barcodes = await barcodeDetector.detect(videoRef.current);
-              if (barcodes.length > 0 && barcodes[0].rawValue) {
-                stopCameraStream();
-                setShowScanner(false);
-                handleResolveHospital(barcodes[0].rawValue);
-              }
-            } catch {
-              // Frame scanning quiet fallback
-            }
-          }
-        }, 300);
-      }
-    } catch (err: unknown) {
-      setCameraError(
-        err instanceof Error ? err.message : 'Unable to access camera. Please allow camera permissions or upload a QR image.'
-      );
-      stopCameraStream();
-    }
-  };
-
-  // Clean up or trigger camera stream when scanner modal toggles
-  useEffect(() => {
-    if (showScanner) {
-      startCameraStream();
-    } else {
-      stopCameraStream();
-    }
-    return () => {
-      stopCameraStream();
-    };
-  }, [showScanner]);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setCameraError(null);
-      setScannerStatus('Analyzing QR code image...');
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ('BarcodeDetector' in window) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
-        await new Promise((resolve) => (img.onload = resolve));
-        const barcodes = await barcodeDetector.detect(img);
-        if (barcodes.length > 0 && barcodes[0].rawValue) {
-          stopCameraStream();
-          setShowScanner(false);
-          handleResolveHospital(barcodes[0].rawValue);
-          return;
-        }
-      }
-
-      // Fallback: Read QR via public QR decoding API
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      const qrData = data?.[0]?.symbol?.[0]?.data;
-      if (qrData) {
-        stopCameraStream();
-        setShowScanner(false);
-        handleResolveHospital(qrData);
-      } else {
-        setCameraError('No valid QR code detected in the selected image. Please try another photo or scan with camera.');
-      }
-    } catch {
-      setCameraError('Could not decode QR code from the selected image.');
-    }
-  };
+  const stats = [
+    { value: '10+', label: 'Hospitals Live' },
+    { value: '5K+', label: 'Tokens Managed' },
+    { value: '99.9%', label: 'Uptime Guaranteed' },
+    { value: '24/7', label: 'Support Available' },
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50/40 to-slate-100/40 text-slate-800 font-sans flex flex-col justify-between pb-20 sm:pb-8 selection:bg-emerald-100 selection:text-emerald-900">
-      
-      {/* 1. Header / Navbar */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-2">
-          
-          {/* Logo & Brand Tag */}
-          <div className="flex items-center space-x-2.5 min-w-0">
-            {/* Heart with Medical Cross Brand Icon */}
-            <div className="w-9 h-9 rounded-xl bg-emerald-600/10 border border-emerald-600/20 text-emerald-700 flex items-center justify-center shadow-2xs flex-shrink-0">
-              <svg 
-                viewBox="0 0 24 24" 
-                className="w-5 h-5 fill-emerald-600 stroke-emerald-600 stroke-1"
-              >
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                <path 
-                  d="M12 7.5v6M9 10.5h6" 
-                  className="stroke-white stroke-2 fill-none" 
-                  strokeLinecap="round" 
+    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-800 selection:bg-emerald-100 selection:text-emerald-900 overflow-x-hidden">
+
+      {/* ══════════════ HEADER ══════════════ */}
+      <header className="fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100/80 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+
+          {/* Logo */}
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md shadow-emerald-200">
+              <svg viewBox="0 0 24 24" className="w-5 h-5">
+                <path
+                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                  fill="white"
                 />
+                <path d="M12 7.5v6M9 10.5h6" stroke="#10b981" strokeWidth="2" strokeLinecap="round" fill="none" />
               </svg>
             </div>
-            
-            <span className="font-black text-lg sm:text-xl text-slate-900 tracking-tight truncate">
-              OPD-JOB
-            </span>
-
-            <span className="bg-emerald-50 text-emerald-800 text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 rounded-full border border-emerald-200/80 shadow-2xs hidden md:inline-flex items-center whitespace-nowrap">
-              Smart OPD Token System
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="font-black text-lg text-slate-900 tracking-tight">OPD-JOB</span>
+              <span className="hidden sm:inline text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                Smart OPD Token System
+              </span>
+            </div>
           </div>
 
-          {/* Right Action Buttons */}
-          <div className="flex items-center space-x-2 flex-shrink-0">
-            {/* Patient Portal / QR Scanner Icon Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setShowScanner(true);
-              }}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition cursor-pointer shadow-2xs active:scale-95"
-              title="Patient Portal: Scan QR Code"
-            >
-              <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-slate-500">
+            <a href="#features" className="hover:text-emerald-700 transition-colors">Features</a>
+            <a href="#stats" className="hover:text-emerald-700 transition-colors">Statistics</a>
+            <a href="#security" className="hover:text-emerald-700 transition-colors">Security</a>
+          </nav>
 
-            {/* Doctor Login Primary Button */}
-            <button
-              type="button"
-              onClick={focusLoginForm}
-              className="bg-[#064e3b] hover:bg-[#043d2e] text-white font-black text-xs sm:text-sm px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl shadow-xs transition cursor-pointer active:scale-95 flex items-center space-x-1"
-            >
-              <Stethoscope className="w-3.5 h-3.5 sm:hidden" />
-              <span>Doctor Login</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Interactive Tab Bar (App-like Switcher) */}
-        <div className="sm:hidden px-3.5 pb-2.5 pt-0.5">
-          <div className="grid grid-cols-2 p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setMobileTab('STAFF')}
-              className={`py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center space-x-1.5 ${
-                mobileTab === 'STAFF'
-                  ? 'bg-white text-emerald-900 shadow-xs border border-slate-200/60'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Stethoscope className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Doctor / Staff</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMobileTab('PATIENT');
-                setShowScanner(true);
-              }}
-              className={`py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center space-x-1.5 ${
-                mobileTab === 'PATIENT'
-                  ? 'bg-white text-emerald-900 shadow-xs border border-slate-200/60'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Camera className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Patient Portal</span>
-            </button>
-          </div>
+          {/* CTA */}
+          <button
+            type="button"
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              setTimeout(() => usernameInputRef.current?.focus(), 100);
+            }}
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-md shadow-emerald-200/60 transition-all duration-200 flex items-center space-x-2 cursor-pointer active:scale-95"
+          >
+            <Stethoscope className="w-4 h-4" />
+            <span>Staff Login</span>
+          </button>
         </div>
       </header>
 
-      {/* 2. Main Hero Section */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3.5 sm:px-6 lg:px-8 py-5 sm:py-10 lg:py-14">
-        
-        {/* On Mobile: Render Staff Login Card first when 'STAFF' tab is active, or Dedicated QR Card when 'PATIENT' is active */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-center">
-          
-          {/* Left Column: Hero Text & Information */}
-          <div className={`lg:col-span-7 xl:col-span-7 space-y-4 sm:space-y-6 ${mobileTab === 'PATIENT' ? 'hidden sm:block' : ''}`}>
-            <div className="inline-flex items-center space-x-2 text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-3 py-1 rounded-full text-xs font-bold tracking-wide w-fit">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>For Doctors & Hospital Staff</span>
-            </div>
+      {/* ══════════════ HERO ══════════════ */}
+      <section className="min-h-screen flex items-center pt-20 pb-12 relative overflow-hidden">
 
-            <h1 className="text-2xl xs:text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-[1.15]">
-              Manage OPD Sessions <br className="hidden xs:inline" />
-              <span className="text-slate-900">with Ease</span>
-            </h1>
-
-            <p className="text-slate-600 text-xs sm:text-base leading-relaxed max-w-lg">
-              Login to your hospital dashboard to manage OPD sessions, view queues, update token status and more.
-            </p>
-
-            {/* Desktop CTAs */}
-            <div className="hidden sm:flex items-center space-x-3 pt-1">
-              <button
-                type="button"
-                onClick={focusLoginForm}
-                className="bg-[#064e3b] hover:bg-[#043d2e] text-white font-extrabold px-6 py-3 rounded-2xl shadow-md hover:shadow-lg transition flex items-center justify-center space-x-2 text-sm cursor-pointer group active:scale-95"
-              >
-                <span>Doctor Login</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowScanner(true)}
-                className="text-xs sm:text-sm font-bold text-emerald-800 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 px-4 py-3 rounded-2xl transition cursor-pointer flex items-center space-x-2 shadow-2xs active:scale-95"
-              >
-                <Camera className="w-4 h-4 text-emerald-600" />
-                <span>Patient Portal (Scan QR)</span>
-              </button>
-            </div>
-
-            {/* Quick Live Health Ticker */}
-            <div className="pt-2 flex items-center space-x-2 text-[11px] text-slate-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              <span>Live real-time sync across reception, doctor room & patient mobile</span>
-            </div>
-          </div>
-
-          {/* Right Column: Interactive Card */}
-          <div className="lg:col-span-5 xl:col-span-5 relative flex items-center justify-center">
-            
-            {/* Soft Ambient Glow */}
-            <div className="absolute -inset-4 sm:-inset-6 bg-gradient-to-tr from-emerald-100/50 via-teal-100/30 to-sky-100/40 rounded-3xl -z-10 blur-xl opacity-70"></div>
-            
-            {/* Doctor Photo Backdrop on Desktop */}
-            <div 
-              className="absolute right-0 top-1/2 -translate-y-1/2 w-72 sm:w-80 h-96 sm:h-[420px] rounded-3xl opacity-30 lg:opacity-45 pointer-events-none -z-5 overflow-hidden hidden sm:block"
-              style={{
-                backgroundImage: 'url(/doctor-hero.jpg)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center right',
-                maskImage: 'linear-gradient(to left, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%)',
-                WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%)'
-              }}
-            ></div>
-
-            {/* IF MOBILE TAB IS 'PATIENT', SHOW DEDICATED QR SCAN CARD */}
-            {mobileTab === 'PATIENT' ? (
-              <div className="bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-7 shadow-xl border border-slate-100 max-w-sm w-full mx-auto relative z-10 space-y-4 animate-in fade-in zoom-in-95 duration-150 text-center">
-                <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-2xs">
-                  <Camera className="w-7 h-7" />
-                </div>
-                
-                <div className="space-y-1">
-                  <h2 className="font-black text-slate-900 text-lg sm:text-xl tracking-tight">
-                    Scan Hospital QR Code
-                  </h2>
-                  <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
-                    Scan prescription or hospital counter QR code to view your live token & queue status.
-                  </p>
-                </div>
-
-                {cameraError && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center space-x-2 text-left">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
-                    <span className="leading-tight">{cameraError}</span>
-                  </div>
-                )}
-
-                <div className="space-y-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowScanner(true)}
-                    className="w-full bg-[#064e3b] hover:bg-[#043d2e] text-white font-black py-3.5 rounded-2xl text-sm shadow-md transition cursor-pointer active:scale-95 flex items-center justify-center space-x-2"
-                  >
-                    <Camera className="w-5 h-5 text-emerald-300" />
-                    <span>Open Camera to Scan QR</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2 cursor-pointer transition active:scale-95"
-                  >
-                    <Upload className="w-4 h-4 text-slate-500" />
-                    <span>Upload QR Photo from Gallery</span>
-                  </button>
-                </div>
-
-                <div className="pt-2 text-[11px] text-slate-400">
-                  ⚡ Instant queue tracking • No registration required
-                </div>
-              </div>
-            ) : (
-              /* HOSPITAL STAFF LOGIN CARD */
-              <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 sm:p-7 shadow-xl sm:shadow-2xl border border-slate-100 max-w-sm w-full mx-auto relative z-10 transition-all animate-in fade-in zoom-in-95 duration-150">
-                
-                {/* Card Top Icon Badge */}
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto mb-2.5 shadow-2xs">
-                  <Plus className="w-6 h-6 stroke-[3]" />
-                </div>
-
-                {/* Title & Subtitle */}
-                <h2 className="text-center font-black text-slate-900 text-base sm:text-lg tracking-tight">
-                  Hospital Staff Login
-                </h2>
-                <p className="text-center text-xs text-slate-500 mb-4 sm:mb-5">
-                  Access your OPD dashboard
-                </p>
-
-                {/* Error Alert */}
-                {loginError && (
-                  <div className="mb-3.5 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center space-x-2 animate-in fade-in">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
-                    <span className="leading-tight">{loginError}</span>
-                  </div>
-                )}
-
-                {/* Login Form */}
-                <form onSubmit={handleLoginSubmit} className="space-y-3">
-                  <div>
-                    <input
-                      ref={usernameInputRef}
-                      type="text"
-                      required
-                      value={emailOrUsername}
-                      onChange={(e) => setEmailOrUsername(e.target.value)}
-                      placeholder="Hospital ID / Username"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-2xs"
-                    />
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Password"
-                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 placeholder-slate-400 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-2xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer p-1"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loginLoading}
-                    className="w-full mt-1.5 bg-[#064e3b] hover:bg-[#043d2e] disabled:bg-slate-300 text-white font-black py-2.5 rounded-xl text-xs sm:text-sm shadow-md hover:shadow-lg transition cursor-pointer active:scale-98 flex items-center justify-center space-x-1.5"
-                  >
-                    {loginLoading ? (
-                      <span>Authenticating...</span>
-                    ) : (
-                      <span>Login</span>
-                    )}
-                  </button>
-                </form>
-              </div>
-            )}
-          </div>
+        {/* Background blobs */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full bg-gradient-to-bl from-emerald-100/70 via-teal-50/40 to-transparent blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-cyan-100/50 via-emerald-50/30 to-transparent blur-3xl" />
+          {/* Dot grid */}
+          <div
+            className="absolute inset-0 opacity-[0.4]"
+            style={{
+              backgroundImage: 'radial-gradient(circle, #d1fae5 1px, transparent 1px)',
+              backgroundSize: '32px 32px',
+            }}
+          />
         </div>
 
-        {/* 3. Interactive "Why Choose OPD-JOB?" Section with App-style 2x2 Grid on Mobile */}
-        <div className="mt-10 sm:mt-16 pt-6 sm:pt-8 border-t border-slate-200/60">
-          <div className="flex items-center justify-between mb-5 sm:mb-8">
-            <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
-              Why Choose OPD-JOB?
-            </h2>
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/60 hidden xs:inline-block">
-              Modern Healthcare Platform
-            </span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+
+            {/* ── Left: Text ── */}
+            <div className="space-y-7 lg:space-y-9">
+
+              {/* Eyebrow badge */}
+              <div className="inline-flex items-center space-x-2 bg-white border border-emerald-200 text-emerald-700 px-4 py-1.5 rounded-full text-xs font-bold shadow-sm shadow-emerald-100/60">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>For Hospital Administrators & Medical Staff</span>
+              </div>
+
+              {/* Headline */}
+              <div className="space-y-2">
+                <h1 className="text-4xl sm:text-5xl lg:text-[3.6rem] font-black text-slate-900 tracking-tight leading-[1.06]">
+                  Manage OPD
+                </h1>
+                <h1 className="text-4xl sm:text-5xl lg:text-[3.6rem] font-black tracking-tight leading-[1.06] bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-500 bg-clip-text text-transparent">
+                  Sessions with Ease
+                </h1>
+              </div>
+
+              {/* Sub-text */}
+              <p className="text-slate-500 text-base sm:text-lg leading-relaxed max-w-lg">
+                The all-in-one platform for hospitals to manage OPD queues, assign tokens, track sessions and deliver better patient experiences — in real time.
+              </p>
+
+              {/* Tags */}
+              <div className="flex flex-wrap gap-2.5">
+                {['HIPAA Compliant', '256-bit SSL', 'Real-time Sync', 'Multi-tenant'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-200 px-3.5 py-1.5 rounded-lg shadow-xs"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>{tag}</span>
+                  </span>
+                ))}
+              </div>
+
+              {/* Live indicator */}
+              <div className="flex items-center space-x-2 text-sm text-slate-400 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Live real-time sync across reception, doctor room & patient mobile</span>
+              </div>
+            </div>
+
+            {/* ── Right: Login Card ── */}
+            <div className="flex justify-center lg:justify-end">
+              <div className="w-full max-w-[420px]">
+
+                {/* Card */}
+                <div className="relative bg-white rounded-3xl shadow-2xl shadow-slate-300/40 border border-slate-100 overflow-hidden">
+
+                  {/* Top gradient accent bar */}
+                  <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-400" />
+
+                  <div className="px-8 pt-8 pb-9">
+
+                    {/* Card header */}
+                    <div className="text-center mb-8">
+                      <div className="w-16 h-16 mx-auto mb-5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
+                        <ShieldCheck className="w-8 h-8 text-white" />
+                      </div>
+                      <h2 className="text-2xl font-black text-slate-900 tracking-tight">Hospital Staff Login</h2>
+                      <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
+                        Secure access for authorized hospital personnel
+                      </p>
+                    </div>
+
+                    {/* Error */}
+                    {loginError && (
+                      <div className="mb-5 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start space-x-3">
+                        <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-600 leading-relaxed">{loginError}</p>
+                      </div>
+                    )}
+
+                    {/* Form */}
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
+
+                      {/* Username / Email */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                          Staff ID / Email
+                        </label>
+                        <div
+                          className={`relative rounded-2xl border-2 transition-all duration-200 ${
+                            focusedField === 'email'
+                              ? 'border-emerald-500 shadow-lg shadow-emerald-100/60 bg-white'
+                              : 'border-slate-200 bg-slate-50/70 hover:border-slate-300'
+                          }`}
+                        >
+                          <Users
+                            className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 ${
+                              focusedField === 'email' ? 'text-emerald-500' : 'text-slate-400'
+                            }`}
+                          />
+                          <input
+                            ref={usernameInputRef}
+                            type="text"
+                            required
+                            value={emailOrUsername}
+                            onChange={(e) => setEmailOrUsername(e.target.value)}
+                            onFocus={() => setFocusedField('email')}
+                            onBlur={() => setFocusedField(null)}
+                            placeholder="admin@hospital.com or username"
+                            className="w-full pl-11 pr-4 py-3.5 bg-transparent rounded-2xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Password */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                          Password
+                        </label>
+                        <div
+                          className={`relative rounded-2xl border-2 transition-all duration-200 ${
+                            focusedField === 'password'
+                              ? 'border-emerald-500 shadow-lg shadow-emerald-100/60 bg-white'
+                              : 'border-slate-200 bg-slate-50/70 hover:border-slate-300'
+                          }`}
+                        >
+                          <Lock
+                            className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 ${
+                              focusedField === 'password' ? 'text-emerald-500' : 'text-slate-400'
+                            }`}
+                          />
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            onFocus={() => setFocusedField('password')}
+                            onBlur={() => setFocusedField(null)}
+                            placeholder="••••••••••••"
+                            className="w-full pl-11 pr-12 py-3.5 bg-transparent rounded-2xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer p-1"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Submit */}
+                      <button
+                        type="submit"
+                        disabled={loginLoading}
+                        className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-slate-300 disabled:to-slate-300 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200/60 transition-all duration-200 cursor-pointer active:scale-[0.98] flex items-center justify-center space-x-2 text-sm disabled:cursor-not-allowed disabled:shadow-none"
+                      >
+                        {loginLoading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>Authenticating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Sign In to Dashboard</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </form>
+
+                    {/* Security footer inside card */}
+                    <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                      <div className="flex items-center space-x-1.5">
+                        <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>End-to-end encrypted</span>
+                      </div>
+                      <span className="font-bold text-emerald-600">256-bit SSL</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Below-card note */}
+                <p className="text-center text-xs text-slate-400 mt-4 flex items-center justify-center space-x-1.5">
+                  <Lock className="w-3 h-3" />
+                  <span>Restricted to authorized hospital administrators &amp; staff only</span>
+                </p>
+              </div>
+            </div>
           </div>
+        </div>
+      </section>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-            
-            {/* Feature 1 */}
-            <div 
-              onClick={() => setActiveFeature(activeFeature === 1 ? null : 1)}
-              className={`p-3.5 sm:p-5 rounded-2xl border transition cursor-pointer active:scale-98 ${
-                activeFeature === 1
-                  ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20 shadow-xs'
-                  : 'bg-white border-slate-200/70 hover:border-emerald-300 hover:shadow-xs'
-              }`}
-            >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center shadow-2xs mb-2.5">
-                <LayoutGrid className="w-5 h-5" />
-              </div>
-              <h3 className="font-extrabold text-xs sm:text-base text-slate-900 leading-snug">
-                Easy Queue Management
-              </h3>
-              <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed mt-1">
-                Handle multiple sessions & shifts
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div 
-              onClick={() => setActiveFeature(activeFeature === 2 ? null : 2)}
-              className={`p-3.5 sm:p-5 rounded-2xl border transition cursor-pointer active:scale-98 ${
-                activeFeature === 2
-                  ? 'bg-teal-50 border-teal-300 ring-2 ring-teal-500/20 shadow-xs'
-                  : 'bg-white border-slate-200/70 hover:border-teal-300 hover:shadow-xs'
-              }`}
-            >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-teal-100/80 text-teal-700 flex items-center justify-center shadow-2xs mb-2.5">
-                <Clock className="w-5 h-5" />
-              </div>
-              <h3 className="font-extrabold text-xs sm:text-base text-slate-900 leading-snug">
-                Real-time Updates
-              </h3>
-              <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed mt-1">
-                Live token status & alerts
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div 
-              onClick={() => setActiveFeature(activeFeature === 3 ? null : 3)}
-              className={`p-3.5 sm:p-5 rounded-2xl border transition cursor-pointer active:scale-98 ${
-                activeFeature === 3
-                  ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20 shadow-xs'
-                  : 'bg-white border-slate-200/70 hover:border-emerald-300 hover:shadow-xs'
-              }`}
-            >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center shadow-2xs mb-2.5">
-                <HeartPulse className="w-5 h-5" />
-              </div>
-              <h3 className="font-extrabold text-xs sm:text-base text-slate-900 leading-snug">
-                Better Patient Care
-              </h3>
-              <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed mt-1">
-                Less waiting, more comfort
-              </p>
-            </div>
-
-            {/* Feature 4 */}
-            <div 
-              onClick={() => setActiveFeature(activeFeature === 4 ? null : 4)}
-              className={`p-3.5 sm:p-5 rounded-2xl border transition cursor-pointer active:scale-98 ${
-                activeFeature === 4
-                  ? 'bg-cyan-50 border-cyan-300 ring-2 ring-cyan-500/20 shadow-xs'
-                  : 'bg-white border-slate-200/70 hover:border-cyan-300 hover:shadow-xs'
-              }`}
-            >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-cyan-100/80 text-cyan-700 flex items-center justify-center shadow-2xs mb-2.5">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <h3 className="font-extrabold text-xs sm:text-base text-slate-900 leading-snug">
-                Secure & Reliable
-              </h3>
-              <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed mt-1">
-                Hospital data is always safe
-              </p>
-            </div>
-          </div>
-
-          {/* 4. Trust Banner */}
-          <div className="mt-8 sm:mt-12 bg-gradient-to-r from-emerald-50/90 via-teal-50/60 to-cyan-50/50 rounded-2xl border border-emerald-100/80 p-4 sm:p-5 flex items-center justify-between shadow-2xs overflow-hidden relative">
-            <div className="flex items-center space-x-3 z-10 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 shadow-2xs">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <span className="font-extrabold text-xs sm:text-sm text-slate-800 tracking-tight truncate">
-                Trusted by 100+ hospitals across India
-              </span>
-            </div>
-
-            {/* Subtle ECG Heartbeat Pulse Line Graphic */}
-            <div className="hidden xs:block opacity-40 pr-2 flex-shrink-0">
-              <svg 
-                className="w-36 sm:w-48 h-7 sm:h-8 text-emerald-600 stroke-current fill-none stroke-2" 
-                viewBox="0 0 200 40"
+      {/* ══════════════ STATS ══════════════ */}
+      <section id="stats" ref={statsRef} className="py-16 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 relative overflow-hidden">
+        {/* subtle pattern overlay */}
+        <div
+          className="absolute inset-0 opacity-10 pointer-events-none"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'/%3E%3C/g%3E%3C/svg%3E\")",
+          }}
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+            {stats.map((stat, i) => (
+              <div
+                key={i}
+                className={`text-center transition-all duration-700 ${
+                  statsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+                }`}
+                style={{ transitionDelay: `${i * 100}ms` }}
               >
-                <path d="M0 20 H60 L70 5 L80 35 L90 10 L100 25 L110 20 H200" strokeLinecap="round" strokeLinejoin="round" />
+                <div className="text-3xl sm:text-4xl font-black text-white tracking-tight">{stat.value}</div>
+                <div className="text-emerald-100 text-sm font-medium mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════ FEATURES ══════════════ */}
+      <section id="features" className="py-20 sm:py-28 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+          {/* Section header */}
+          <div className="text-center mb-14">
+            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full uppercase tracking-wider">
+              Platform Features
+            </span>
+            <h2 className="mt-4 text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
+              Everything your hospital needs
+            </h2>
+            <p className="mt-3 text-slate-500 max-w-xl mx-auto text-base leading-relaxed">
+              Built specifically for hospital administrators, doctors, and reception staff to streamline OPD operations.
+            </p>
+          </div>
+
+          {/* Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((f, i) => {
+              const Icon = f.icon;
+              return (
+                <div
+                  key={i}
+                  className="group relative bg-white rounded-2xl border border-slate-100 p-7 shadow-sm hover:shadow-2xl hover:shadow-emerald-100/60 hover:-translate-y-2 transition-all duration-300 overflow-hidden cursor-default"
+                >
+                  {/* Hover glow fill */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/80 to-teal-50/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl" />
+
+                  <div className="relative z-10 space-y-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <Icon className="w-6 h-6 text-emerald-700" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base mb-1.5">{f.title}</h3>
+                      <p className="text-slate-500 text-sm leading-relaxed">{f.desc}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════ SECURITY ══════════════ */}
+      <section id="security" className="py-20 bg-slate-950 relative overflow-hidden">
+        {/* Ambient glows */}
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+
+            {/* Left text */}
+            <div className="space-y-6">
+              <span className="text-[11px] font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-3.5 py-1.5 rounded-full uppercase tracking-wider">
+                Enterprise Security
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+                Hospital data stays <br />
+                <span className="text-emerald-400">safe &amp; private</span>
+              </h2>
+              <p className="text-slate-400 text-base leading-relaxed">
+                We take hospital data security seriously. Every tenant is fully isolated, all communications are encrypted, and we comply with healthcare data regulations.
+              </p>
+              <div className="space-y-3.5">
+                {[
+                  'Multi-tenant data isolation per hospital',
+                  'AES-256 encryption at rest & in transit',
+                  'JWT-based role access controls',
+                  'Audit logs for every admin action',
+                ].map((item) => (
+                  <div key={item} className="flex items-center space-x-3 text-slate-300 text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: System monitor card */}
+            <div>
+              <div className="bg-slate-900/80 border border-slate-700/50 rounded-3xl p-8 backdrop-blur-sm">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-emerald-500/20 border border-emerald-500/30 rounded-xl flex items-center justify-center">
+                    <Activity className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="text-white font-bold text-sm">System Monitor</div>
+                    <div className="text-slate-400 text-xs">All systems operational</div>
+                  </div>
+                  <div className="ml-auto flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs text-emerald-400 font-medium">Live</span>
+                  </div>
+                </div>
+
+                {/* ECG line */}
+                <div className="mb-6 overflow-hidden rounded-xl bg-slate-800/60 p-4">
+                  <svg className="w-full h-14 text-emerald-500" viewBox="0 0 300 60" fill="none">
+                    <path
+                      d="M0 30 H60 L70 10 L80 50 L90 5 L100 55 L110 30 H150 L160 10 L170 50 L180 5 L190 55 L200 30 H300"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M0 30 H60 L70 10 L80 50 L90 5 L100 55 L110 30 H150 L160 10 L170 50 L180 5 L190 55 L200 30 H300"
+                      stroke="currentColor"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="opacity-15"
+                    />
+                  </svg>
+                </div>
+
+                {/* Status rows */}
+                {[
+                  { label: 'API Response Time', value: '< 50ms' },
+                  { label: 'Database Connection', value: 'Healthy' },
+                  { label: 'Data Encryption', value: 'AES-256' },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between py-3 border-b border-slate-800/60 last:border-0"
+                  >
+                    <span className="text-slate-400 text-xs">{item.label}</span>
+                    <span className="text-xs font-semibold text-emerald-400">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════ TRUST STRIP ══════════════ */}
+      <section className="py-10 bg-gradient-to-r from-slate-50 to-white border-t border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-center space-x-4">
+              <div className="w-11 h-11 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-emerald-700" />
+              </div>
+              <div>
+                <div className="font-black text-slate-900 text-base">Trusted by hospitals across India</div>
+                <div className="text-slate-400 text-xs mt-0.5">Built for clinics & multi-specialty hospitals</div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-8">
+              {[
+                { Icon: Star, val: '4.8/5', sub: 'User Rating' },
+                { Icon: Zap, val: '99.9%', sub: 'Uptime' },
+                { Icon: ShieldCheck, val: 'Secure', sub: 'Encrypted' },
+              ].map(({ Icon, val, sub }, i) => (
+                <div key={i} className="text-center">
+                  <div className="flex items-center justify-center space-x-1 mb-0.5">
+                    <Icon className="w-4 h-4 text-emerald-500" />
+                    <span className="font-black text-slate-900 text-sm">{val}</span>
+                  </div>
+                  <div className="text-slate-400 text-xs">{sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════ FOOTER ══════════════ */}
+      <footer className="bg-slate-950 py-8 border-t border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="w-4 h-4">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="white" />
               </svg>
             </div>
+            <span className="font-black text-white tracking-tight">OPD-JOB</span>
           </div>
+          <p className="text-slate-500 text-xs text-center leading-relaxed">
+            Hospital Administration Portal — Restricted access for authorized personnel only.
+          </p>
+          <p className="text-slate-600 text-xs">© 2026 OPD-JOB. All rights reserved.</p>
         </div>
-      </main>
+      </footer>
 
-      {/* 5. Sticky Floating Mobile Action Bar (App-like feel) */}
-      <div className="sm:hidden fixed bottom-3 inset-x-3.5 z-40">
-        <div className="bg-slate-900/90 backdrop-blur-md text-white p-1.5 rounded-2xl shadow-xl flex items-center justify-between border border-white/10">
-          <button
-            type="button"
-            onClick={() => {
-              setMobileTab('STAFF');
-              focusLoginForm();
-            }}
-            className={`flex-1 py-2 px-3 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center space-x-1.5 active:scale-95 ${
-              mobileTab === 'STAFF' ? 'bg-[#064e3b] text-white shadow-xs' : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            <Stethoscope className="w-3.5 h-3.5" />
-            <span>Staff Login</span>
-          </button>
-          
-          <div className="w-px h-6 bg-white/20 mx-1"></div>
-          
-          <button
-            type="button"
-            onClick={() => {
-              setMobileTab('PATIENT');
-              setShowScanner(true);
-            }}
-            className={`flex-1 py-2 px-3 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center space-x-1.5 active:scale-95 ${
-              mobileTab === 'PATIENT' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            <Camera className="w-3.5 h-3.5 text-emerald-300" />
-            <span>Scan QR (Patient)</span>
-          </button>
-        </div>
+      {/* ══════════════ MOBILE STICKY CTA ══════════════ */}
+      <div className="sm:hidden fixed bottom-4 inset-x-4 z-50">
+        <button
+          type="button"
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => usernameInputRef.current?.focus(), 600);
+          }}
+          className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold py-4 rounded-2xl shadow-2xl shadow-emerald-900/50 flex items-center justify-center space-x-2.5 text-sm cursor-pointer active:scale-[0.98] transition-all"
+        >
+          <Stethoscope className="w-4 h-4" />
+          <span>Hospital Staff — Sign In</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* 6. QR Code Camera Scanner Modal */}
-      {showScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center space-x-2 text-slate-800">
-                <Camera className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-black text-sm">Scan Hospital QR Code</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  stopCameraStream();
-                  setShowScanner(false);
-                }}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="relative aspect-square bg-slate-950 rounded-2xl overflow-hidden flex items-center justify-center shadow-inner">
-              <video
-                ref={videoRef}
-                className="w-full h-full object-cover"
-                autoPlay
-                muted
-                playsInline
-              />
-              {/* Viewfinder Target Frame */}
-              <div className="absolute inset-8 border-2 border-dashed border-emerald-400/90 rounded-2xl pointer-events-none animate-pulse flex items-center justify-center">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
-              </div>
-              <div className="absolute bottom-3 inset-x-3 text-center">
-                <span className="bg-black/60 backdrop-blur-xs text-white text-[11px] font-medium px-2.5 py-1 rounded-full border border-white/10">
-                  {scannerStatus}
-                </span>
-              </div>
-            </div>
-
-            {cameraError && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
-                <span className="leading-tight">{cameraError}</span>
-              </div>
-            )}
-
-            <div className="flex items-center space-x-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 cursor-pointer transition active:scale-95"
-              >
-                <Upload className="w-3.5 h-3.5 text-slate-500" />
-                <span>Upload QR Photo from Gallery</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 8. Support Modal */}
-      {showSupportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-5 sm:p-6 shadow-2xl border border-slate-100 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center space-x-2 text-slate-800">
-                <HelpCircle className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-black text-base">Support & Helpdesk</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSupportModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-600">
-              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center space-x-3 text-emerald-900">
-                <Phone className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <div>
-                  <div className="font-bold">Hospital Helpline</div>
-                  <div className="text-[11px] text-emerald-700">+91 98765 43210 (24x7 Support)</div>
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center space-x-3 text-slate-800">
-                <Mail className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                <div>
-                  <div className="font-bold">Email Support</div>
-                  <div className="text-[11px] text-slate-500">support@opdjob.com</div>
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowSupportModal(false)}
-              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs transition cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
