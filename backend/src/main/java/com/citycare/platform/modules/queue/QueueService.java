@@ -341,7 +341,7 @@ public class QueueService {
     public QueueBoardDto getQueueBoard(UUID hospitalId, UUID sessionId) {
         tenantValidator.validateHospitalAccess(hospitalId);
 
-        OpdSession session = sessionRepository.findByIdAndHospitalId(sessionId, hospitalId)
+        OpdSession session = sessionRepository.findByIdAndHospitalIdWithDoctorAndHospital(sessionId, hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found."));
 
         return buildQueueBoardDto(session);

@@ -135,6 +135,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   };
 
   const [queueBoard, setQueueBoard] = useState<QueueBoard | null>(null);
+  const queueBoardCacheRef = useRef<Map<string, QueueBoard>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -770,11 +771,20 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
 
   const loadQueueBoard = async (sessionId: string, showSpinner = true) => {
     const reqId = ++queueBoardRequestIdRef.current;
+
+    // Instant SWR display: if cached, show immediately with 0ms transition
+    const cached = queueBoardCacheRef.current.get(sessionId);
+    if (cached && selectedSessionIdRef.current === sessionId) {
+      setQueueBoard(cached);
+      showSpinner = false;
+    }
+
     try {
       if (showSpinner) setLoading(true);
       setError(null);
       const board = await api.getQueueBoard(currentUser.hospitalId, sessionId);
       if (reqId !== queueBoardRequestIdRef.current || selectedSessionIdRef.current !== sessionId) return;
+      queueBoardCacheRef.current.set(sessionId, board);
       setQueueBoard(board);
 
       if (board && board.activeTokens) {
@@ -1494,10 +1504,18 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                             setActiveShift(docShift);
                             activeShiftRef.current = docShift;
                             if (s) {
+                              const isSameSession = selectedSessionIdRef.current === s.id;
+                              const cached = queueBoardCacheRef.current.get(s.id);
+                              if (cached) {
+                                setQueueBoard(cached);
+                              } else {
+                                setQueueBoard(null);
+                              }
                               setSelectedSessionId(s.id);
                               selectedSessionIdRef.current = s.id;
-                              setQueueBoard(null);
-                              loadQueueBoard(s.id);
+                              if (isSameSession) {
+                                loadQueueBoard(s.id, !cached);
+                              }
                             } else {
                               setSelectedSessionId('');
                               selectedSessionIdRef.current = '';

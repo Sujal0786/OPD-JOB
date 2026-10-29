@@ -34,6 +34,17 @@ public interface OpdSessionRepository extends JpaRepository<OpdSession, UUID> {
 
     List<OpdSession> findAllByHospitalIdAndDoctorIdAndSessionDate(UUID hospitalId, UUID doctorId, LocalDate sessionDate);
     Optional<OpdSession> findByIdAndHospitalId(UUID id, UUID hospitalId);
+
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT s FROM OpdSession s
+        JOIN FETCH s.doctor d
+        JOIN FETCH s.hospital h
+        WHERE s.id = :id AND h.id = :hospitalId
+    """)
+    Optional<OpdSession> findByIdAndHospitalIdWithDoctorAndHospital(
+            @org.springframework.data.repository.query.Param("id") UUID id,
+            @org.springframework.data.repository.query.Param("hospitalId") UUID hospitalId);
+
     Optional<OpdSession> findByHospitalIdAndDoctorIdAndSessionDateAndSessionName(
             UUID hospitalId, UUID doctorId, LocalDate sessionDate, String sessionName);
 
