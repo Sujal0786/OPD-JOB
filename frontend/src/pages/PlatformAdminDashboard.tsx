@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
-import { HospitalAdminSummary, LoginResponse } from '../types';
+import { HospitalAdminSummary, LoginResponse, StaffMember, Role } from '../types';
 import { 
   Building2, 
   Users, 
@@ -71,6 +71,97 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
   // Delete Hospital State
   const [deletingHospital, setDeletingHospital] = useState<HospitalAdminSummary | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Staff Accounts Management Modal State
+  const [managingStaffHospital, setManagingStaffHospital] = useState<HospitalAdminSummary | null>(null);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [staffError, setStaffError] = useState<string | null>(null);
+  const [staffSuccess, setStaffSuccess] = useState<string | null>(null);
+
+  // New Staff Creation Form State
+  const [showAddStaffForm, setShowAddStaffForm] = useState(false);
+  const [creatingStaff, setCreatingStaff] = useState(false);
+  const [newStaffForm, setNewStaffForm] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    role: 'RECEPTIONIST' as Role,
+  });
+  const [lastCreatedStaffCredentials, setLastCreatedStaffCredentials] = useState<{
+    email: string;
+    pass: string;
+    name: string;
+    role: string;
+  } | null>(null);
+
+  const handleOpenStaffModal = async (h: HospitalAdminSummary) => {
+    setManagingStaffHospital(h);
+    setStaffError(null);
+    setStaffSuccess(null);
+    setShowAddStaffForm(false);
+    setLastCreatedStaffCredentials(null);
+    setNewStaffForm({
+      fullName: '',
+      email: '',
+      password: '',
+      role: 'RECEPTIONIST',
+    });
+    await loadHospitalStaff(h.id);
+  };
+
+  const loadHospitalStaff = async (hospitalId: string) => {
+    try {
+      setLoadingStaff(true);
+      setStaffError(null);
+      const list = await api.listHospitalStaff(hospitalId);
+      setStaffList(list);
+    } catch (err: unknown) {
+      setStaffError(err instanceof Error ? err.message : 'Failed to load staff list');
+    } finally {
+      setLoadingStaff(false);
+    }
+  };
+
+  const handleCreateStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!managingStaffHospital) return;
+    if (newStaffForm.password.length < 8) {
+      setStaffError('Password must be at least 8 characters long.');
+      return;
+    }
+    try {
+      setCreatingStaff(true);
+      setStaffError(null);
+      setStaffSuccess(null);
+      await api.createHospitalStaff(managingStaffHospital.id, {
+        fullName: newStaffForm.fullName.trim(),
+        email: newStaffForm.email.toLowerCase().trim(),
+        password: newStaffForm.password,
+        role: newStaffForm.role,
+      });
+
+      setLastCreatedStaffCredentials({
+        name: newStaffForm.fullName.trim(),
+        email: newStaffForm.email.toLowerCase().trim(),
+        pass: newStaffForm.password,
+        role: newStaffForm.role,
+      });
+      setStaffSuccess(`Staff account created successfully for ${newStaffForm.fullName.trim()}!`);
+      setShowAddStaffForm(false);
+      setNewStaffForm({
+        fullName: '',
+        email: '',
+        password: '',
+        role: 'RECEPTIONIST',
+      });
+      await loadHospitalStaff(managingStaffHospital.id);
+    } catch (err: unknown) {
+      setStaffError(err instanceof Error ? err.message : 'Failed to create staff member');
+    } finally {
+      setCreatingStaff(false);
+    }
+  };
 
   const handleOpenEdit = (h: HospitalAdminSummary) => {
     setEditingHospital(h);
@@ -278,7 +369,7 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-4 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition shadow-sm cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Register New Hospital</span>
+              <span> Register New Hospital</span>
             </button>
 
             <button
@@ -460,7 +551,14 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
                         <KeyRound className="w-3 h-3 text-slate-400" />
                         <span>Hospital Staff Login:</span>
                       </span>
-                      <span className="text-[10px] font-bold text-slate-500">{h.adminName}</span>
+                      <button
+                        onClick={() => handleOpenStaffModal(h)}
+                        className="text-[11px] font-extrabold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center space-x-1 cursor-pointer"
+                        title="Manage all staff accounts for this hospital"
+                      >
+                        <Users className="w-3 h-3" />
+                        <span>Staff Accounts ➔</span>
+                      </button>
                     </div>
                     <div className="flex items-center justify-between font-mono text-[11px] pt-1">
                       <span className="text-slate-700 font-semibold truncate">{h.adminEmail}</span>
@@ -515,6 +613,16 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
                       <span>Remove Hospital</span>
                     </button>
                   </div>
+
+                  {/* Dedicated Staff Logins & Credentials Button */}
+                  <button
+                    onClick={() => handleOpenStaffModal(h)}
+                    className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-extrabold py-2 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer border border-indigo-200 shadow-2xs"
+                    title="View and create receptionist, nurse, and doctor logins"
+                  >
+                    <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Manage Staff Logins & Passwords</span>
+                  </button>
                 </div>
               </div>
             );
@@ -887,6 +995,244 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
               >
                 <Trash2 className="w-4 h-4" />
                 <span>{isDeleting ? 'Deleting Hospital...' : 'Confirm & Delete Hospital'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL 4: MANAGE HOSPITAL STAFF CREDENTIALS & LOGINS           */}
+      {/* ------------------------------------------------------------- */}
+      {managingStaffHospital && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 space-y-5 my-8">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-2xl flex items-center justify-center">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg">Staff Accounts & Logins</h3>
+                  <p className="text-xs text-slate-500">
+                    Hospital: <strong className="text-slate-800">{managingStaffHospital.name}</strong> • <span className="font-mono text-emerald-700">/h/{managingStaffHospital.slug}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setManagingStaffHospital(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-2xl cursor-pointer p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Success Alert / Newly Created Staff Credentials Banner */}
+            {lastCreatedStaffCredentials && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-emerald-800 font-extrabold text-xs">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>New Staff Account Ready to Use!</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const text = `CityCare Staff Login:\nName: ${lastCreatedStaffCredentials.name}\nRole: ${lastCreatedStaffCredentials.role}\nEmail: ${lastCreatedStaffCredentials.email}\nPassword: ${lastCreatedStaffCredentials.pass}\nLogin URL: ${window.location.origin}/login`;
+                      navigator.clipboard.writeText(text);
+                      alert('Staff credentials copied to clipboard!');
+                    }}
+                    className="bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center space-x-1 cursor-pointer shadow-2xs"
+                  >
+                    <Copy className="w-3 h-3 text-emerald-600" />
+                    <span>Copy Credentials</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono pt-1">
+                  <div className="bg-white p-2 rounded-xl border border-emerald-100">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Email / Username:</span>
+                    <span className="font-bold text-slate-800">{lastCreatedStaffCredentials.email}</span>
+                  </div>
+                  <div className="bg-white p-2 rounded-xl border border-emerald-100">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Password:</span>
+                    <span className="font-bold text-slate-800">{lastCreatedStaffCredentials.pass}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {staffError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <span>{staffError}</span>
+              </div>
+            )}
+
+            {/* Action Bar: Current Count & Create Toggle */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="text-xs font-bold text-slate-600">
+                Active Staff Members ({staffList.length})
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddStaffForm(!showAddStaffForm);
+                  setStaffError(null);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center space-x-1.5 shadow-2xs ${
+                  showAddStaffForm
+                    ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                }`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{showAddStaffForm ? 'Cancel' : 'Add Staff Member'}</span>
+              </button>
+            </div>
+
+            {/* Create Staff Form */}
+            {showAddStaffForm && (
+              <form onSubmit={handleCreateStaffSubmit} className="p-4 bg-slate-50 border border-indigo-100 rounded-2xl space-y-3.5">
+                <h4 className="font-extrabold text-xs uppercase tracking-wider text-indigo-900 flex items-center space-x-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Create New Staff Login</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Staff Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Reception Counter 1 / Nurse Priya"
+                      value={newStaffForm.fullName}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, fullName: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Staff Role *</label>
+                    <select
+                      value={newStaffForm.role}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value as Role })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="RECEPTIONIST">RECEPTIONIST (Front Desk Queue & Tokens)</option>
+                      <option value="HOSPITAL_ADMIN">HOSPITAL_ADMIN (Full Hospital Control)</option>
+                      <option value="DOCTOR">DOCTOR (Doctor Consultation Room)</option>
+                      <option value="NURSE">NURSE (Triage & Vitals Desk)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Login Email / Username *</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. counter1@shamcare.com"
+                      value={newStaffForm.email}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Login Password * (Min 8 characters)</label>
+                    <input
+                      type="text"
+                      required
+                      minLength={8}
+                      placeholder="e.g. Staff@1234"
+                      value={newStaffForm.password}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, password: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={creatingStaff}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-5 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>{creatingStaff ? 'Creating Account...' : 'Save & Issue Credentials'}</span>
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Staff List Table / Cards */}
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {loadingStaff ? (
+                <div className="p-8 text-center text-slate-400 space-y-2">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-indigo-500" />
+                  <p className="text-xs font-semibold">Loading hospital staff accounts...</p>
+                </div>
+              ) : staffList.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                  <Users className="w-8 h-8 mx-auto text-slate-300" />
+                  <p className="text-xs font-bold text-slate-600">No additional staff members found.</p>
+                  <p className="text-[11px] text-slate-400">Click "Add Staff Member" to create credentials for receptionists, nurses, or doctors.</p>
+                </div>
+              ) : (
+                staffList.map((member) => (
+                  <div
+                    key={member.id}
+                    className="p-3 bg-white hover:bg-slate-50/80 border border-slate-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 transition"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-extrabold text-xs text-slate-900">{member.fullName}</span>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
+                          member.role === 'HOSPITAL_ADMIN'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : member.role === 'RECEPTIONIST'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : member.role === 'DOCTOR'
+                            ? 'bg-sky-50 text-sky-800 border-sky-200'
+                            : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                        }`}>
+                          {member.role}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono text-slate-600">{member.email}</div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(member.email);
+                          alert(`Copied email: ${member.email}`);
+                        }}
+                        className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg text-xs font-semibold border border-slate-200 cursor-pointer flex items-center space-x-1"
+                        title="Copy Login Email"
+                      >
+                        <Copy className="w-3 h-3 text-slate-500" />
+                        <span className="text-[10px]">Copy Email</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <p className="text-[11px] text-slate-400">
+                Staff can log in with their email and password on the Staff Portal.
+              </p>
+              <button
+                type="button"
+                onClick={() => setManagingStaffHospital(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+              >
+                Done
               </button>
             </div>
           </div>

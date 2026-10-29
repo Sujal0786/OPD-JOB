@@ -152,3 +152,19 @@ export interface HospitalRegistrationPayload {
   adminEmail: string;
   adminPassword: string;
 }
+
+export interface StaffMember {
+  id: string;
+  fullName: string;
+  email: string;
+  role: Role;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface StaffCreatePayload {
+  fullName: string;
+  email: string;
+  password: string;
+  role: Role;
+}

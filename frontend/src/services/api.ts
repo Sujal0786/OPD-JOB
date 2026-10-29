@@ -10,6 +10,8 @@ import {
   QueueBoard,
   TokenResponse,
   TokenStatus,
+  StaffMember,
+  StaffCreatePayload,
 } from '../types';
 
 const RAW_BASE = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
@@ -458,6 +460,20 @@ export const api = {
       method: 'DELETE',
     });
     await parseJsonResponse<any>(res, 'Failed to remove hospital');
+  },
+
+  async listHospitalStaff(hospitalId: string): Promise<StaffMember[]> {
+    const res = await fetchWithAuth(`${API_BASE}/hospitals/${hospitalId}/staff`);
+    return parseJsonResponse<StaffMember[]>(res, 'Failed to fetch hospital staff accounts');
+  },
+
+  async createHospitalStaff(hospitalId: string, payload: StaffCreatePayload): Promise<StaffMember> {
+    const res = await fetchWithAuth(`${API_BASE}/hospitals/${hospitalId}/staff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return parseJsonResponse<StaffMember>(res, 'Failed to create hospital staff member');
   },
 
   async getAllHospitals(): Promise<HospitalProfile[]> {
