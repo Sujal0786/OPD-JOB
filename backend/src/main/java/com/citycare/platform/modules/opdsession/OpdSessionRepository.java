@@ -48,6 +48,11 @@ public interface OpdSessionRepository extends JpaRepository<OpdSession, UUID> {
     Optional<OpdSession> findByHospitalIdAndDoctorIdAndSessionDateAndSessionName(
             UUID hospitalId, UUID doctorId, LocalDate sessionDate, String sessionName);
 
+    @org.springframework.data.jpa.repository.Query("SELECT s.hospital.id, COUNT(s) FROM OpdSession s WHERE s.sessionDate = :sessionDate GROUP BY s.hospital.id")
+    List<Object[]> countSessionsGroupedByHospitalAndDate(@org.springframework.data.repository.query.Param("sessionDate") LocalDate sessionDate);
+
+    long countByHospitalIdAndSessionDate(UUID hospitalId, LocalDate sessionDate);
+
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query("DELETE FROM OpdSession s WHERE s.hospital.id = :hospitalId AND s.sessionDate < :cutoffDate")
     int deleteOldSessionsByHospital(@org.springframework.data.repository.query.Param("hospitalId") UUID hospitalId,

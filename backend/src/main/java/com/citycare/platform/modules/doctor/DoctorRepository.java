@@ -1,6 +1,7 @@
 package com.citycare.platform.modules.doctor;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -14,4 +15,9 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
     Optional<Doctor> findByIdAndHospitalId(UUID id, UUID hospitalId);
     List<Doctor> findAllByHospitalIdAndNameContainingIgnoreCase(UUID hospitalId, String name);
     Optional<Doctor> findFirstByHospitalIdAndNameIgnoreCase(UUID hospitalId, String name);
+
+    @Query("SELECT d.hospital.id, COUNT(d) FROM Doctor d GROUP BY d.hospital.id")
+    List<Object[]> countDoctorsGroupedByHospital();
+
+    long countByHospitalId(UUID hospitalId);
 }

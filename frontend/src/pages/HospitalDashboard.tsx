@@ -395,20 +395,44 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   };
 
   const handleShiftChange = (newShift: 'MORNING' | 'EVENING' | 'FULL_DAY') => {
+    setActiveShift(newShift);
+    activeShiftRef.current = newShift;
+    localStorage.setItem(`citycare_active_shift_${currentUser.hospitalId}`, newShift);
+
     if (!selectedDoctorId) return;
     const doc = doctors.find(d => d.id === selectedDoctorId);
     if (!doc) return;
 
     if (newShift === 'FULL_DAY') {
-      setActiveShift('FULL_DAY');
-      activeShiftRef.current = 'FULL_DAY';
-      localStorage.setItem(`citycare_active_shift_${currentUser.hospitalId}`, 'FULL_DAY');
       setFullDayPage(1);
       loadFullDayHistory(doc.id, true);
       return;
     }
 
-    switchDoctorShift(doc.id, newShift);
+    // View-Only Shift Inspection: View Morning or Evening patient history/queue WITHOUT mutating the doctor's live session!
+    const docSessions = sessions.filter(s => s.doctorId === doc.id);
+    const targetSession = newShift === 'EVENING'
+      ? docSessions.find(s => isEveningSession(s))
+      : docSessions.find(s => isMorningSession(s));
+
+    if (targetSession) {
+      const isSameSession = selectedSessionIdRef.current === targetSession.id;
+      const cached = queueBoardCacheRef.current.get(targetSession.id);
+      if (cached) {
+        setQueueBoard(cached);
+      } else {
+        setQueueBoard(null);
+      }
+      setSelectedSessionId(targetSession.id);
+      selectedSessionIdRef.current = targetSession.id;
+      if (isSameSession) {
+        loadQueueBoard(targetSession.id, !cached);
+      }
+    } else {
+      setSelectedSessionId('');
+      selectedSessionIdRef.current = '';
+      setQueueBoard(null);
+    }
   };
 
   // 1. Initial Load: Fetch Sessions for Selected Date and Doctors
@@ -1500,21 +1524,26 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                             setFullDayPage(1);
                             loadFullDayHistory(doc.id, true);
                           } else {
-                            const docShift = isDocEvening ? 'EVENING' : 'MORNING';
-                            setActiveShift(docShift);
-                            activeShiftRef.current = docShift;
-                            if (s) {
-                              const isSameSession = selectedSessionIdRef.current === s.id;
-                              const cached = queueBoardCacheRef.current.get(s.id);
+                            const docSessions = sessions.filter(sess => sess.doctorId === doc.id);
+                            const targetSession = activeShift === 'EVENING'
+                              ? docSessions.find(sess => isEveningSession(sess))
+                              : activeShift === 'MORNING'
+                              ? docSessions.find(sess => isMorningSession(sess))
+                              : s;
+
+                            const sessionToLoad = targetSession || s;
+                            if (sessionToLoad) {
+                              const isSameSession = selectedSessionIdRef.current === sessionToLoad.id;
+                              const cached = queueBoardCacheRef.current.get(sessionToLoad.id);
                               if (cached) {
                                 setQueueBoard(cached);
                               } else {
                                 setQueueBoard(null);
                               }
-                              setSelectedSessionId(s.id);
-                              selectedSessionIdRef.current = s.id;
+                              setSelectedSessionId(sessionToLoad.id);
+                              selectedSessionIdRef.current = sessionToLoad.id;
                               if (isSameSession) {
-                                loadQueueBoard(s.id, !cached);
+                                loadQueueBoard(sessionToLoad.id, !cached);
                               }
                             } else {
                               setSelectedSessionId('');
@@ -1655,9 +1684,22 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 <div className="space-y-4 sm:space-y-6">
                   {/* Active Serving Card */}
                   <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-200 text-center relative overflow-hidden">
-                    <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 mb-2">
-                      Currently Serving
-                    </div>
+                    {(() => {
+                      const activeSess = sessions.find(s => s.id === selectedSessionId);
+                      const isPaused = activeSess && activeSess.status !== 'OPEN';
+                      return isPaused ? (
+                        <div className="mb-2 flex items-center justify-center">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                            <PauseCircle className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                            Shift Inactive / Standby
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 mb-2">
+                          Currently Serving
+                        </div>
+                      );
+                    })()}
                     <div className="text-6xl font-black text-emerald-600 my-2 tracking-tight">
                       {queueBoard.currentServingToken ? `#${queueBoard.currentServingToken}` : '—'}
                     </div>
@@ -1672,6 +1714,28 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       <Edit className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Edit Doctor Profile & Room</span>
                     </button>
+
+                    {(() => {
+                      const activeSess = sessions.find(s => s.id === selectedSessionId);
+                      if (activeSess && activeSess.status !== 'OPEN') {
+                        return (
+                          <div className="mt-3 p-3 bg-amber-50/90 border border-amber-200 rounded-2xl text-center space-y-1.5">
+                            <p className="text-[11px] font-bold text-amber-800">
+                              {activeShift === 'EVENING' ? 'Evening OPD' : 'Morning OPD'} is currently inactive.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSessionStatus(activeSess)}
+                              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition cursor-pointer shadow-xs"
+                            >
+                              <PlayCircle className="w-3.5 h-3.5" />
+                              <span>Activate {activeShift === 'EVENING' ? 'Evening' : 'Morning'} Shift</span>
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100 text-xs">
                       <div className="bg-slate-50 p-2.5 rounded-2xl">
@@ -2463,7 +2527,12 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                             key={s.id}
                             type="button"
                             onClick={() => {
-                              switchDoctorShift(selectedDoctorId, isEvening ? 'EVENING' : 'MORNING');
+                              setSelectedSessionId(s.id);
+                              selectedSessionIdRef.current = s.id;
+                              const shiftType = isEvening ? 'EVENING' : 'MORNING';
+                              setActiveShift(shiftType);
+                              activeShiftRef.current = shiftType;
+                              loadDoctorRoomBoard(selectedDoctorId, selectedDate, s.id, false);
                             }}
                             className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 border transition cursor-pointer ${
                               isCurrentShift
@@ -2496,20 +2565,27 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                           ) : (
                             <span className="inline-flex items-center space-x-1 font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-xl">
                               <PauseCircle className="w-3.5 h-3.5 text-amber-600" />
-                              <span>On Break</span>
+                              <span>Inactive</span>
                             </span>
                           )}
 
                           <button
                             type="button"
-                            onClick={() => handleToggleSessionStatus(activeSession)}
+                            onClick={() => {
+                              if (activeSession.status === 'OPEN') {
+                                handleToggleSessionStatus(activeSession);
+                              } else {
+                                const isEvening = isEveningSession(activeSession);
+                                switchDoctorShift(selectedDoctorId, isEvening ? 'EVENING' : 'MORNING');
+                              }
+                            }}
                             className={`px-3 py-1 rounded-xl font-bold border transition cursor-pointer text-xs ${
                               activeSession.status === 'OPEN'
                                 ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-xs'
                             }`}
                           >
-                            {activeSession.status === 'OPEN' ? 'Take Break' : 'Resume OPD'}
+                            {activeSession.status === 'OPEN' ? 'Take Break' : 'Activate OPD'}
                           </button>
                         </div>
                       )}
