@@ -220,4 +220,27 @@ class OpdSessionServiceTest {
         verify(sessionRepository).save(session);
         verify(auditLogService).record(eq(hospital), isNull(), eq("OPD_SESSION_STATUS_CHANGED"), eq("OpdSession"), eq(sessionId.toString()), isNull(), anyString());
     }
+
+    @Test
+    @DisplayName("getPublicTodaySessions automatically provisions slots if no staff has initialized today")
+    void testGetPublicTodaySessionsAutoProvisionsWhenEmpty() {
+        when(hospitalRepository.findByIdForUpdate(hospitalId)).thenReturn(Optional.of(hospital));
+        when(doctorRepository.findAllByHospitalIdAndActiveTrue(hospitalId)).thenReturn(List.of(doctor1));
+        when(sessionRepository.findAllByHospitalIdAndSessionDate(hospitalId, today)).thenReturn(new ArrayList<>());
+        when(sessionRepository.save(any(OpdSession.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OpdSession s1 = new OpdSession(UUID.randomUUID(), hospital, doctor1, today, "MORNING OPD", LocalTime.of(9, 0), LocalTime.of(14, 0), OpdSessionStatus.OPEN);
+
+        // 1st query returns empty, 2nd query (after auto-provisioning) returns s1
+        when(sessionRepository.findPublicByHospitalIdAndSessionDateWithDoctorAndHospital(hospitalId, today))
+                .thenReturn(List.of())
+                .thenReturn(List.of(s1));
+        when(queueRepository.findAllBySessionIds(anyCollection())).thenReturn(List.of());
+        when(tokenRepository.countTokensBySessionIdsAndStatuses(anyCollection(), anyCollection())).thenReturn(List.of());
+
+        List<OpdSessionDto> result = sessionService.getPublicTodaySessions(hospitalId);
+
+        assertEquals(1, result.size());
+        verify(hospitalRepository, times(1)).findByIdForUpdate(hospitalId);
+    }
 }

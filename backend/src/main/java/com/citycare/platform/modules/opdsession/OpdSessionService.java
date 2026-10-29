@@ -9,11 +9,15 @@ import com.citycare.platform.modules.doctor.Doctor;
 import com.citycare.platform.modules.doctor.DoctorRepository;
 import com.citycare.platform.modules.hospital.Hospital;
 import com.citycare.platform.modules.hospital.HospitalRepository;
+import com.citycare.platform.modules.hospital.HospitalStatus;
 import com.citycare.platform.modules.queue.OpdSessionQueue;
 import com.citycare.platform.modules.queue.OpdSessionQueueRepository;
 import com.citycare.platform.modules.queue.OpdTokenRepository;
 import com.citycare.platform.modules.queue.TokenStatus;
 import com.citycare.platform.tenant.TenantSecurityValidator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +28,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class OpdSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(OpdSessionService.class);
 
     private final OpdSessionRepository sessionRepository;
     private final OpdSessionQueueRepository queueRepository;
@@ -57,25 +63,51 @@ public class OpdSessionService {
     }
 
     /**
-     * Read-only session listing for a specific date.
-     * Guaranteed zero mutation / write side-effects on GET.
+     * Session listing for a specific date with self-healing auto-provisioning for today.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<OpdSessionDto> getSessionsForDate(UUID hospitalId, LocalDate date) {
         tenantValidator.validateHospitalAccess(hospitalId);
         List<OpdSession> sessions = sessionRepository.findAllByHospitalIdAndSessionDateWithDoctorAndHospital(hospitalId, date);
+        if (sessions.isEmpty() && date.equals(getTodayIst())) {
+            provisionSessionsForActiveDoctors(hospitalId, date);
+            sessions = sessionRepository.findAllByHospitalIdAndSessionDateWithDoctorAndHospital(hospitalId, date);
+        }
         return mapToDtos(sessions);
     }
 
     /**
-     * Read-only public listing of today's sessions for active doctors.
-     * Guaranteed zero mutation / write side-effects on GET.
+     * Public listing of today's sessions for active doctors with self-healing fallback.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<OpdSessionDto> getPublicTodaySessions(UUID hospitalId) {
         LocalDate today = getTodayIst();
         List<OpdSession> sessions = sessionRepository.findPublicByHospitalIdAndSessionDateWithDoctorAndHospital(hospitalId, today);
+        if (sessions.isEmpty()) {
+            provisionSessionsForActiveDoctors(hospitalId, today);
+            sessions = sessionRepository.findPublicByHospitalIdAndSessionDateWithDoctorAndHospital(hospitalId, today);
+        }
         return mapToDtos(sessions);
+    }
+
+    /**
+     * Scheduled midnight auto-provisioner: runs every night at 00:01 AM IST to ensure
+     * all active doctors in all active hospitals have today's morning & evening OPD slots ready.
+     */
+    @Scheduled(cron = "0 1 0 * * ?", zone = "Asia/Kolkata")
+    @Transactional
+    public void scheduleDailyMidnightSessionProvisioning() {
+        LocalDate today = getTodayIst();
+        List<Hospital> hospitals = hospitalRepository.findAll();
+        for (Hospital h : hospitals) {
+            try {
+                if (h.getStatus() == HospitalStatus.ACTIVE) {
+                    provisionSessionsForActiveDoctors(h.getId(), today);
+                }
+            } catch (Exception e) {
+                log.error("Failed to auto-provision daily sessions for hospital {}: {}", h.getName(), e.getMessage());
+            }
+        }
     }
 
     /**
@@ -87,7 +119,8 @@ public class OpdSessionService {
         tenantValidator.validateHospitalAccess(hospitalId);
         LocalDate today = getTodayIst();
         provisionSessionsForActiveDoctors(hospitalId, today);
-        return getSessionsForDate(hospitalId, today);
+        List<OpdSession> sessions = sessionRepository.findAllByHospitalIdAndSessionDateWithDoctorAndHospital(hospitalId, today);
+        return mapToDtos(sessions);
     }
 
     @Transactional

@@ -2288,7 +2288,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
             )}
 
             {/* When a doctor is selected but has no session in this shift */}
-            {activeShift !== 'FULL_DAY' && (!selectedSessionId || !queueBoard) && (
+            {activeShift !== 'FULL_DAY' && !selectedSessionId && (
               <div className="bg-white rounded-3xl p-10 border border-slate-200 text-center space-y-4 shadow-xs">
                 <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-3xl flex items-center justify-center mx-auto border border-amber-200">
                   {activeShift === 'EVENING' ? <Sunset className="w-8 h-8" /> : <Sunrise className="w-8 h-8" />}
@@ -2304,6 +2304,16 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     You can activate this shift at any time using the Activate button on the doctor card above.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* When switching doctors / loading queue board */}
+            {activeShift !== 'FULL_DAY' && selectedSessionId && !queueBoard && (
+              <div className="bg-white rounded-3xl p-12 border border-slate-200 text-center space-y-3 shadow-xs">
+                <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-xs font-bold text-slate-600">
+                  Loading queue for {doctors.find(d => d.id === selectedDoctorId)?.name || 'Doctor'}...
+                </p>
               </div>
             )}
           </div>
