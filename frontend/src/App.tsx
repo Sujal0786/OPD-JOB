@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { api } from './services/api';
 import { LoginResponse } from './types';
 import { ArrowLeft } from 'lucide-react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 const PatientPortal = lazy(() => import('./pages/PatientPortal').then(m => ({ default: m.PatientPortal })));
 const HospitalDashboard = lazy(() => import('./pages/HospitalDashboard').then(m => ({ default: m.HospitalDashboard })));
@@ -203,9 +204,12 @@ export const App: React.FC = () => {
   };
 
   return (
-    <Suspense fallback={<PageLoadingFallback />}>
-      {renderContent()}
-    </Suspense>
+    <>
+      <Suspense fallback={<PageLoadingFallback />}>
+        {renderContent()}
+      </Suspense>
+      <SpeedInsights />
+    </>
   );
 };
 
