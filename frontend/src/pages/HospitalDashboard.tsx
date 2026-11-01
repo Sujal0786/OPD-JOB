@@ -35,7 +35,12 @@ import {
   PlayCircle,
   Sunrise,
   Sunset,
-  Moon
+  Moon,
+  ChevronDown,
+  Menu,
+  X,
+  TrendingUp,
+  Activity,
 } from 'lucide-react';
 
 interface HospitalDashboardProps {
@@ -208,6 +213,68 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [doctorSearchQuery, setDoctorSearchQuery] = useState('');
   const [inspectingPatientToken, setInspectingPatientToken] = useState<TokenResponse | null>(null);
+
+  // Signature OPD-JOB Logo animation & Profile popover state
+  const [logoDancing, setLogoDancing] = useState(false);
+  const [smileDrawn, setSmileDrawn] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [copiedTenantUrl, setCopiedTenantUrl] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    // 1.5 seconds after entering dashboard, symbols dance and smile curve sweeps across
+    const danceTimer = setTimeout(() => {
+      setLogoDancing(true);
+      const smileTimer = setTimeout(() => {
+        setSmileDrawn(true);
+      }, 750);
+      return () => clearTimeout(smileTimer);
+    }, 1500);
+
+    return () => clearTimeout(danceTimer);
+  }, []);
+
+  const triggerLogoDance = () => {
+    setLogoDancing(false);
+    setSmileDrawn(false);
+    setTimeout(() => {
+      setLogoDancing(true);
+      setTimeout(() => {
+        setSmileDrawn(true);
+      }, 750);
+    }, 50);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    if (showProfileMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProfileMenu]);
+
+  const handleCopyTenantLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/h/${currentUser.hospitalSlug}`;
+    navigator.clipboard.writeText(url);
+    setCopiedTenantUrl(true);
+    setTimeout(() => setCopiedTenantUrl(false), 2000);
+  };
+
+  const logoLetters = [
+    { char: 'O', className: 'text-slate-900' },
+    { char: 'P', className: 'text-slate-900' },
+    { char: 'D', className: 'text-slate-900' },
+    { char: '-', className: 'text-emerald-500 font-black px-0.5' },
+    { char: 'J', className: 'text-emerald-600 font-extrabold' },
+    { char: 'O', className: 'text-emerald-600 font-extrabold' },
+    { char: 'B', className: 'text-emerald-600 font-extrabold' },
+  ];
 
   // Live Client-side filtering for active Queue Desk tokens
   const filteredTokens = useMemo(() => {
@@ -1144,7 +1211,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans relative">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col md:flex-row font-sans text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-900 relative">
       {/* Real-time Token Arrival Notification Toast */}
       {latestArrival && (
         <div className="fixed top-5 right-5 z-50 max-w-sm sm:max-w-md bg-white border-2 border-emerald-500 rounded-2xl shadow-2xl p-4 flex items-start space-x-3.5 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -1183,142 +1250,457 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         </div>
       )}
 
-      {/* Top Navigation Bar */}
-      <header className="bg-slate-900 text-white shadow-xl sticky top-0 z-40 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-y-3">
-          <div className="flex items-center space-x-3">
-            <div className="bg-emerald-500/20 p-2.5 rounded-2xl border border-emerald-500/30">
-              <Building2 className="w-5 h-5 text-emerald-400" />
+      {/* Mobile Sidebar Backdrop Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          onClick={() => setMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-40 md:hidden animate-fade-in"
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Clean Luxury Clinical White Sidebar */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white text-slate-700 flex flex-col border-r border-slate-200/90 shadow-sm transition-transform duration-300 ease-in-out md:static md:translate-x-0 shrink-0 select-none ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Top Header: Brand & Animated Logo */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+          <div
+            className="flex items-center space-x-2.5 cursor-pointer group"
+            onClick={() => {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              triggerLogoDance();
+            }}
+            onMouseEnter={triggerLogoDance}
+            title="OPD-JOB Healthcare Suite"
+          >
+            {/* Cardiac Heartbeat Logo Mark */}
+            <div
+              className={`w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 flex items-center justify-center shadow-md shadow-emerald-500/20 transition-all duration-300 relative ${
+                logoDancing ? 'animate-icon-dance shadow-emerald-500/35 ring-2 ring-emerald-400/40' : 'group-hover:scale-105'
+              }`}
+            >
+              <svg viewBox="0 0 24 24" className="w-5 h-5 animate-heartbeat origin-center">
+                <path
+                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                  fill="white"
+                />
+                <path d="M12 7.5v6M9 10.5h6" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" fill="none" />
+              </svg>
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-base sm:text-lg font-black tracking-tight">{currentUser.hospitalName}</h1>
-                <span className="bg-slate-800 text-emerald-400 font-bold text-[10px] px-2 py-0.5 rounded-md border border-slate-700">
-                  {currentUser.role}
-                </span>
+
+            {/* Logo Typography with Dancing Characters & Drawn Smile */}
+            <div className="relative select-none py-1">
+              <div className="flex items-baseline text-lg font-black tracking-tight">
+                {logoLetters.map((l, idx) => (
+                  <span
+                    key={idx}
+                    className={`inline-block transition-transform duration-200 ${l.className} ${
+                      logoDancing ? 'animate-letter-dance' : ''
+                    }`}
+                    style={{
+                      animationDelay: `${idx * 65}ms`,
+                    }}
+                  >
+                    {l.char}
+                  </span>
+                ))}
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5 inline-block align-baseline" />
               </div>
-              <p className="text-[11px] text-slate-400">
-                Tenant: <span className="text-emerald-400 font-mono">/h/{currentUser.hospitalSlug}</span> • Staff: <span className="text-slate-200 font-medium">{currentUser.fullName}</span>
-              </p>
+
+              {/* Animated Smile Curve Underneath */}
+              <svg
+                className="absolute -bottom-1.5 left-0 w-[105%] h-2.5 overflow-visible pointer-events-none"
+                viewBox="0 0 100 14"
+                fill="none"
+              >
+                <defs>
+                  <linearGradient id="dashSmileGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="50%" stopColor="#06b6d4" />
+                    <stop offset="100%" stopColor="#10b981" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M 2 2.5 Q 50 14 96 3"
+                  stroke="url(#dashSmileGrad)"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  className={`transition-all duration-700 ease-out ${
+                    smileDrawn
+                      ? 'opacity-100 [stroke-dashoffset:0]'
+                      : 'opacity-0 [stroke-dashoffset:120]'
+                  }`}
+                  style={{
+                    strokeDasharray: 120,
+                    filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.45))',
+                  }}
+                />
+                <circle
+                  cx="2"
+                  cy="2.5"
+                  r="1.6"
+                  fill="#10b981"
+                  className={`transition-all duration-300 ease-out ${
+                    smileDrawn ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
+                  }`}
+                />
+                <circle
+                  cx="96"
+                  cy="3"
+                  r="1.8"
+                  fill="#06b6d4"
+                  className={`transition-all duration-300 delay-150 ease-out ${
+                    smileDrawn ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
+                  }`}
+                />
+              </svg>
             </div>
           </div>
 
-          {/* Action Tabs & Controls */}
-          <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap">
-            <nav className="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700 text-xs">
+          {/* Close button on mobile */}
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className="md:hidden text-slate-400 hover:text-slate-800 p-1 rounded-lg transition"
+            aria-label="Close navigation sidebar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Sidebar Navigation */}
+        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto">
+          <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+            Clinical Operations
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('QUEUE_DESK');
+              setMobileSidebarOpen(false);
+              const currentDocId = selectedDoctorIdRef.current;
+              if (currentDocId) {
+                const matchSession = getDoctorSessionForShift(currentDocId, activeShiftRef.current);
+                if (matchSession) {
+                  setSelectedSessionId(matchSession.id);
+                  selectedSessionIdRef.current = matchSession.id;
+                  loadQueueBoard(matchSession.id);
+                }
+              }
+            }}
+            className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer group ${
+              activeTab === 'QUEUE_DESK'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+            }`}
+          >
+            <Users className={`w-4 h-4 ${activeTab === 'QUEUE_DESK' ? 'text-white' : 'text-slate-500 group-hover:text-slate-800'}`} />
+            <span className="flex-1 text-left">Queue Desk</span>
+            {queueBoard && queueBoard.activeTokens.length > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
+                activeTab === 'QUEUE_DESK' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {queueBoard.activeTokens.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('DOCTOR_ROOM');
+              setMobileSidebarOpen(false);
+              const currentSession = sessions.find(s => s.id === selectedSessionId);
+              if (currentSession && currentSession.doctorId) {
+                setSelectedDoctorId(currentSession.doctorId);
+                selectedDoctorIdRef.current = currentSession.doctorId;
+                loadDoctorRoomBoard(currentSession.doctorId);
+              } else if (selectedDoctorIdRef.current) {
+                loadDoctorRoomBoard(selectedDoctorIdRef.current);
+              }
+            }}
+            className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer group ${
+              activeTab === 'DOCTOR_ROOM'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+            }`}
+          >
+            <Stethoscope className={`w-4 h-4 ${activeTab === 'DOCTOR_ROOM' ? 'text-white' : 'text-slate-500 group-hover:text-slate-800'}`} />
+            <span className="flex-1 text-left">Doctor Room View</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('DOCTORS_ROSTER');
+              setMobileSidebarOpen(false);
+            }}
+            className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer group ${
+              activeTab === 'DOCTORS_ROSTER'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+            }`}
+          >
+            <Plus className={`w-4 h-4 ${activeTab === 'DOCTORS_ROSTER' ? 'text-white' : 'text-teal-600'}`} />
+            <span className="flex-1 text-left">Manage Doctors</span>
+            <span className={`text-[10px] font-mono ${activeTab === 'DOCTORS_ROSTER' ? 'text-white/80' : 'text-slate-400'}`}>
+              {doctors.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('QR_KIOSK');
+              setMobileSidebarOpen(false);
+            }}
+            className={`w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer group ${
+              activeTab === 'QR_KIOSK'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+            }`}
+          >
+            <QrCode className={`w-4 h-4 ${activeTab === 'QR_KIOSK' ? 'text-white' : 'text-amber-500'}`} />
+            <span className="flex-1 text-left">Hospital QR Kiosk</span>
+          </button>
+
+          <div className="pt-4 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+            Tools & Search
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              setShowSearchModal(true);
+            }}
+            className="w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 transition cursor-pointer text-left group"
+          >
+            <Search className="w-4 h-4 text-emerald-600" />
+            <span>Search Patient</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              if (onOpenPatientPortal) {
+                onOpenPatientPortal();
+              } else {
+                window.open(`/h/${currentUser.hospitalSlug}`, '_blank');
+              }
+            }}
+            className="w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 transition cursor-pointer text-left group"
+          >
+            <ExternalLink className="w-4 h-4 text-cyan-600" />
+            <span>Patient Portal</span>
+          </button>
+        </nav>
+
+        {/* User Profile Section (Click to Open Popover Bar Above) */}
+        <div className="p-3 border-t border-slate-100 relative" ref={profileMenuRef}>
+          {/* Popover Bar Opening Above */}
+          {showProfileMenu && (
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-2xl border border-slate-200/90 shadow-2xl p-3.5 space-y-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center space-x-2.5 pb-2.5 border-b border-slate-100">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                  {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-black text-slate-900 truncate">
+                    {currentUser.fullName}
+                  </div>
+                  <div className="flex items-center space-x-1.5 mt-0.5">
+                    <span className="bg-emerald-50 text-emerald-700 font-extrabold text-[9px] px-2 py-0.5 rounded-md border border-emerald-200">
+                      {currentUser.role}
+                    </span>
+                    <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-emerald-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>On Duty</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status info */}
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-2 text-[11px] text-slate-500 flex items-center justify-between">
+                <span>Account Status</span>
+                <span className="font-bold text-emerald-700">Authenticated Staff</span>
+              </div>
+
+              {/* Logout Button */}
               <button
+                type="button"
                 onClick={() => {
-                  setActiveTab('QUEUE_DESK');
-                  const currentDocId = selectedDoctorIdRef.current;
-                  if (currentDocId) {
-                    const matchSession = getDoctorSessionForShift(currentDocId, activeShiftRef.current);
-                    if (matchSession) {
-                      setSelectedSessionId(matchSession.id);
-                      selectedSessionIdRef.current = matchSession.id;
-                      loadQueueBoard(matchSession.id);
-                    }
-                  }
+                  setShowProfileMenu(false);
+                  onLogout();
                 }}
-                className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center space-x-1.5 ${
-                  activeTab === 'QUEUE_DESK'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:text-white'
-                }`}
+                className="w-full flex items-center justify-center space-x-2 p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition font-bold text-xs cursor-pointer shadow-xs"
               >
-                <Users className="w-3.5 h-3.5" />
-                <span>Queue Desk</span>
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Logout</span>
               </button>
+            </div>
+          )}
 
-              <button
-                onClick={() => {
-                  setActiveTab('DOCTOR_ROOM');
-                  const currentSession = sessions.find(s => s.id === selectedSessionId);
-                  if (currentSession && currentSession.doctorId) {
-                    setSelectedDoctorId(currentSession.doctorId);
-                    selectedDoctorIdRef.current = currentSession.doctorId;
-                    loadDoctorRoomBoard(currentSession.doctorId);
-                  } else if (selectedDoctorIdRef.current) {
-                    loadDoctorRoomBoard(selectedDoctorIdRef.current);
-                  }
-                }}
-                className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center space-x-1.5 ${
-                  activeTab === 'DOCTOR_ROOM'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                <Stethoscope className="w-3.5 h-3.5" />
-                <span>Doctor Room View</span>
-              </button>
+          {/* Collapsed Pill (Only Shows Avatar & Name) */}
+          <button
+            type="button"
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="w-full flex items-center space-x-2.5 p-2 rounded-2xl hover:bg-slate-100/90 border border-transparent hover:border-slate-200 transition cursor-pointer text-left group"
+            title="Click to view role & account status"
+          >
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+              {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-700 transition-colors">
+                {currentUser.fullName}
+              </div>
+            </div>
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+                showProfileMenu ? 'rotate-180 text-emerald-600' : 'group-hover:text-slate-700'
+              }`}
+            />
+          </button>
+        </div>
+      </aside>
 
-              <button
-                onClick={() => setActiveTab('DOCTORS_ROSTER')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center space-x-1.5 ${
-                  activeTab === 'DOCTORS_ROSTER'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                <Plus className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Manage Doctors</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('QR_KIOSK')}
-                className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center space-x-1.5 ${
-                  activeTab === 'QR_KIOSK'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                <QrCode className="w-3.5 h-3.5 text-amber-400" />
-                <span>Hospital QR</span>
-              </button>
-            </nav>
-
+      {/* Main Content Workspace */}
+      <div className="flex-1 flex flex-col min-w-0 md:h-screen md:overflow-y-auto bg-[#f8fafc]">
+        {/* Top Executive Header - Clean Single Line */}
+        <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between shadow-xs">
+          <div className="flex items-center space-x-3 min-w-0">
             <button
-              onClick={() => setShowSearchModal(true)}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 border border-slate-700 transition cursor-pointer"
+              type="button"
+              onClick={() => setMobileSidebarOpen(true)}
+              className="md:hidden text-slate-600 hover:text-slate-900 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer shrink-0"
+              aria-label="Open mobile menu"
             >
-              <Search className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Search Patient</span>
+              <Menu className="w-5 h-5" />
             </button>
 
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-black text-xs shadow-sm shrink-0">
+                <Building2 className="w-4 h-4" />
+              </div>
+              <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight truncate max-w-md" title={currentUser.hospitalName}>
+                {currentUser.hospitalName}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Live Sync Pill */}
+            <div className="hidden sm:flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200/80 text-emerald-700 px-2.5 py-1 rounded-full text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Real-time Sync</span>
+            </div>
+
+            {/* Active Shift Indicator */}
+            <div className="flex items-center space-x-1.5 bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-1 rounded-xl text-xs font-bold">
+              {activeShift === 'EVENING' ? (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Evening OPD</span>
+                </>
+              ) : activeShift === 'FULL_DAY' ? (
+                <>
+                  <Calendar className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Full Day</span>
+                </>
+              ) : (
+                <>
+                  <Sunrise className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Morning OPD</span>
+                </>
+              )}
+            </div>
+
+            {/* Quick Refresh Button */}
             <button
               type="button"
               onClick={() => {
-                if (onOpenPatientPortal) {
-                  onOpenPatientPortal();
-                } else {
-                  window.open(`/h/${currentUser.hospitalSlug}`, '_blank');
-                }
+                loadSessions(selectedDate);
+                if (selectedSessionId) loadQueueBoard(selectedSessionId);
               }}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 border border-slate-700 transition cursor-pointer"
-              title="Open Public Patient Booking Portal"
+              className="p-1.5 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 border border-slate-200 transition cursor-pointer"
+              title="Refresh Queue Board"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden sm:inline">Patient Portal</span>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
+          </div>
+        </header>
 
-            <button
-              onClick={onLogout}
-              className="bg-red-950/70 hover:bg-red-900 text-red-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 border border-red-800/60 transition cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+        {/* Executive KPI Overview Cards */}
+        <div className="px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {/* Total Tokens Card */}
+            <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-xs flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-600 flex items-center justify-center shrink-0">
+                <Ticket className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Tokens</div>
+                <div className="text-lg sm:text-xl font-black text-slate-900">
+                  {queueBoard?.activeTokens.length ?? 0}
+                </div>
+              </div>
+            </div>
+
+            {/* In Consultation Card */}
+            <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-xs flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-cyan-50 border border-cyan-200/80 text-cyan-600 flex items-center justify-center shrink-0">
+                <Stethoscope className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">In Chamber</div>
+                <div className="text-lg sm:text-xl font-black text-cyan-700">
+                  {queueBoard?.activeTokens.filter(t => t.status === 'IN_CONSULTATION' || t.status === 'CALLED').length ?? 0}
+                </div>
+              </div>
+            </div>
+
+            {/* Waiting in Lounge Card */}
+            <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-xs flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-600 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Waiting Queue</div>
+                <div className="text-lg sm:text-xl font-black text-amber-700">
+                  {queueBoard?.activeTokens.filter(t => t.status === 'WAITING').length ?? 0}
+                </div>
+              </div>
+            </div>
+
+            {/* Active Doctors Card */}
+            <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-xs flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200/80 text-indigo-600 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Doctors</div>
+                <div className="text-lg sm:text-xl font-black text-slate-900">
+                  {doctors.filter(d => d.active).length} <span className="text-xs font-semibold text-slate-400">/ {doctors.length}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </header>
 
-      {/* Main Container */}
-      <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-3.5 sm:py-5 flex-1 space-y-4 sm:space-y-5">
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl flex items-center justify-between text-sm shadow-xs">
-            <span className="font-medium">{error}</span>
-            <button onClick={() => setError(null)} className="font-bold text-lg cursor-pointer">&times;</button>
-          </div>
-        )}
+        {/* Main Workspace Body */}
+        <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 space-y-4 sm:space-y-6">
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl flex items-center justify-between text-sm shadow-xs">
+              <span className="font-medium">{error}</span>
+              <button onClick={() => setError(null)} className="font-bold text-lg cursor-pointer">&times;</button>
+            </div>
+          )}
 
         {/* ------------------------------------------------------------- */}
         {/* TAB 1: QUEUE DESK (Reception / Multi-Doctor Operations)        */}
@@ -2971,6 +3353,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
           </div>
         )}
       </main>
+      </div>
 
       {/* ------------------------------------------------------------- */}
       {/* MODAL: ADD / EDIT DOCTOR PROFILE                             */}

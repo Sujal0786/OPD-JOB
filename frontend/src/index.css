@@ -18,6 +18,88 @@
   animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Logo dancing & smile keyframes */
+@keyframes letterDance {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  20% {
+    transform: translateY(-8px) rotate(-8deg) scale(1.18);
+  }
+  45% {
+    transform: translateY(3px) rotate(5deg) scale(0.95);
+  }
+  70% {
+    transform: translateY(-3px) rotate(-3deg) scale(1.06);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes iconDance {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  20% {
+    transform: rotate(-12deg) scale(1.16);
+  }
+  40% {
+    transform: rotate(10deg) scale(1.1);
+  }
+  65% {
+    transform: rotate(-6deg) scale(1.05);
+  }
+  85% {
+    transform: rotate(3deg) scale(1.02);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+.animate-letter-dance {
+  display: inline-block;
+  animation: letterDance 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-icon-dance {
+  animation: iconDance 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Cardiac Heartbeat Animation */
+@keyframes cardiacHeartbeat {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0px rgba(16, 185, 129, 0));
+  }
+  12% {
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 8px rgba(52, 211, 153, 0.75));
+  }
+  24% {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 3px rgba(16, 185, 129, 0.35));
+  }
+  38% {
+    transform: scale(1.25);
+    filter: drop-shadow(0 0 14px rgba(52, 211, 153, 0.9));
+  }
+  62% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0px rgba(16, 185, 129, 0));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0px rgba(16, 185, 129, 0));
+  }
+}
+
+.animate-heartbeat {
+  animation: cardiacHeartbeat 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  transform-origin: center;
+}
+
 /* Google Translate widget customization */
 .goog-te-banner-frame.skiptranslate,
 .goog-te-banner-frame {
