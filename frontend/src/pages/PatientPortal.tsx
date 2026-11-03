@@ -787,9 +787,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
                       {lang === 'HI' ? 'अपना ओपीडी टोकन बुक करें' : 'Book Your OPD Token'}
                     </h2>
-                    <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1">
-                      {lang === 'HI' ? 'घर बैठे कतार में लगें, समय बचाएं' : 'Get in line, save time'}
-                    </p>
                     {/* Heartbeat pulse wave SVG graphic */}
                     <div className="mt-2.5 flex items-center space-x-2">
                       <svg className="w-28 sm:w-36 h-5 text-emerald-500" viewBox="0 0 120 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -800,14 +797,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                       </span>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => speakText(t.speechPrompt)}
-                    className="flex-shrink-0 bg-white hover:bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl flex items-center space-x-1.5 transition shadow-xs cursor-pointer active:scale-95"
-                  >
-                    <Volume2 className="w-4 h-4 text-emerald-600" />
-                    <span>{t.listen}</span>
-                  </button>
                 </div>
               </div>
 
@@ -1183,13 +1172,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                   <Sparkles className="w-4 h-4 text-emerald-700 flex-shrink-0" />
                   <span className="font-semibold text-slate-800">{t.tapToBookNotice}</span>
                 </span>
-                <button
-                  onClick={() => speakText(lang === 'HI' ? 'कृपया अपना डॉक्टर चुनें' : 'Please choose your doctor')}
-                  className="text-emerald-800 hover:text-emerald-950 font-semibold flex items-center space-x-1.5 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-emerald-200 shadow-2xs hover:bg-emerald-50 transition"
-                >
-                  <Volume2 className="w-4 h-4 text-emerald-700" />
-                  <span>{t.listen}</span>
-                </button>
               </div>
 
               {/* Search Bar on DOCTOR_LIST screen */}
@@ -1412,14 +1394,6 @@ export const PatientPortal: React.FC<PatientPortalProps> = ({
                     <span>{selectedSession.doctorRoomNumber}</span>
                   </p>
                 </div>
-
-                <button
-                  onClick={() => speakText(`${selectedSession.doctorName}. ${selectedSession.doctorSpecialty}. ${selectedSession.doctorRoomNumber}.`)}
-                  className="inline-flex items-center space-x-2 text-xs md:text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl font-semibold transition cursor-pointer"
-                >
-                  <Volume2 className="w-4 h-4 text-emerald-600" />
-                  <span>Listen to Doctor Info</span>
-                </button>
               </div>
 
               {/* Right Column on Laptop (7 cols): Live OPD Status & Input Form */}

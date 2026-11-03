@@ -35,6 +35,7 @@ import {
   PlayCircle,
   Sunrise,
   Sunset,
+  Sun,
   Moon,
   ChevronDown,
   Menu,
@@ -1717,30 +1718,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                       Doctor OPD Sessions ({sessions.length} Available {selectedDate === todayStr ? 'Today' : `on ${selectedDate}`})
                     </span>
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    {selectedDate === todayStr
-                      ? 'Live real-time OPD queues for active doctors'
-                      : `Viewing historical OPD session queues for ${selectedDate}`}
-                  </p>
                 </div>
 
                 <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-0.5">
-                  <button
-                    onClick={handleOpenAddDoctor}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 cursor-pointer transition shadow-xs whitespace-nowrap flex-shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span> Add Doctor</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab('DOCTORS_ROSTER')}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 cursor-pointer transition border border-slate-200 whitespace-nowrap flex-shrink-0"
-                  >
-                    <Users className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Directory</span>
-                  </button>
-
                   {/* Clean 7-Day Storage Button */}
                   <button
                     onClick={() => {
@@ -2143,7 +2123,6 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                           <UserPlus className="w-5 h-5 text-emerald-600" />
                           <span>Walk-in Patients</span>
                         </h3>
-                        <p className="text-xs text-slate-500">Record physical arrivals at reception instantly</p>
                       </div>
                       <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-1 rounded-lg">
                         Next: #{queueBoard.nextTokenSequence}
@@ -2202,7 +2181,6 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                           <span>Edit Doctor</span>
                         </button>
                       </div>
-                      <p className="text-xs text-slate-500">Live tokens synchronized across reception, doctor room, and patient mobile</p>
                     </div>
 
                     {/* Inline Quick Search inside Queue */}
@@ -2787,53 +2765,64 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
         {/* TAB 2: DOCTOR ROOM VIEW (Dedicated Single Doctor Screen)      */}
         {/* ------------------------------------------------------------- */}
         {activeTab === 'DOCTOR_ROOM' && (
-          <div className="space-y-5">
+          <div className="space-y-4 sm:space-y-5">
             {/* Doctor & Date Header */}
-            <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-100">
-                <div className="flex items-center space-x-3">
-                  <div className="p-3 bg-emerald-100 text-emerald-800 rounded-2xl">
-                    <Stethoscope className="w-6 h-6" />
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-sm border border-slate-200 space-y-3.5 sm:space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100">
+                    <Stethoscope className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <h2 className="font-extrabold text-slate-900 text-base">Doctor Consultation Room Mode</h2>
-                    <p className="text-xs text-slate-500">Dedicated desk for doctors inside their consultation chamber</p>
+                    <h2 className="text-xs font-black uppercase tracking-wider text-slate-500">
+                      Doctor Consultation Chamber
+                    </h2>
+                    <p className="text-sm font-extrabold text-slate-900">
+                      {doctors.find((d) => d.id === selectedDoctorId)?.name || 'Doctor Room'}
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-3">
-                  <label className="text-xs font-bold text-slate-600">Select Doctor:</label>
-                  <select
-                    value={selectedDoctorId}
-                    onChange={(e) => {
-                      const newDocId = e.target.value;
-                      setSelectedDoctorId(newDocId);
-                      selectedDoctorIdRef.current = newDocId;
-                      setLatestArrival(null);
-                    }}
-                    className="px-3.5 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    {doctors.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} — {d.roomNumber} ({d.specialty})
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
+                  <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                    <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Doctor:</label>
+                    <div className="relative">
+                      <select
+                        value={selectedDoctorId}
+                        onChange={(e) => {
+                          const newDocId = e.target.value;
+                          setSelectedDoctorId(newDocId);
+                          selectedDoctorIdRef.current = newDocId;
+                          setLatestArrival(null);
+                        }}
+                        className="appearance-none pr-7 pl-1 py-0.5 bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer max-w-[210px] sm:max-w-[300px] truncate"
+                      >
+                        {doctors.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name} — Room {d.roomNumber} ({d.specialty})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => {
                       const doc = doctors.find((d) => d.id === selectedDoctorId);
                       if (doc) handleOpenEditDoctor(doc);
                     }}
-                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 border border-emerald-300 transition cursor-pointer"
+                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1 border border-emerald-200 transition cursor-pointer flex-shrink-0"
                     title="Edit Selected Doctor Profile"
                   >
                     <Edit className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Edit Doctor</span>
                   </button>
+
                   <button
                     onClick={() => selectedDoctorId && loadDoctorRoomBoard(selectedDoctorId, selectedDate)}
-                    className="p-2 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                    className="p-1.5 text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition cursor-pointer flex-shrink-0"
                     title="Refresh Doctor Queue"
                   >
                     <RefreshCw className={`w-4 h-4 ${loadingDoctorBoard ? 'animate-spin' : ''}`} />
@@ -2842,14 +2831,14 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
               </div>
 
               {/* Date & Shift Filter Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-100">
                 {/* Date Selection */}
-                <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-                  <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
+                <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-0.5">
+                  <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => setSelectedDate(todayStr)}
-                      className={`px-3 py-1 rounded-lg transition font-bold cursor-pointer ${
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                         selectedDate === todayStr
                           ? 'bg-emerald-600 text-white shadow-xs'
                           : 'text-slate-600 hover:text-slate-900'
@@ -2860,7 +2849,7 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     <button
                       type="button"
                       onClick={() => setSelectedDate(getYesterdayString())}
-                      className={`px-3 py-1 rounded-lg transition font-bold cursor-pointer ${
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
                         selectedDate === getYesterdayString()
                           ? 'bg-emerald-600 text-white shadow-xs'
                           : 'text-slate-600 hover:text-slate-900'
@@ -2870,9 +2859,9 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                     </button>
                   </div>
 
-                  <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200">
+                  <div className="flex items-center space-x-1.5 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200 flex-shrink-0">
                     <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="font-bold text-slate-600">Date:</span>
+                    <span className="text-xs font-bold text-slate-600">Date:</span>
                     <input
                       type="date"
                       value={selectedDate}
@@ -2882,12 +2871,12 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                           setSelectedDate(e.target.value);
                         }
                       }}
-                      className="font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
+                      className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer"
                     />
                   </div>
 
                   {selectedDate !== todayStr && (
-                    <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200">
+                    <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200 flex-shrink-0">
                       Historical View ({selectedDate})
                     </span>
                   )}
@@ -2900,52 +2889,57 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                   const activeSession = docSessions.find(s => s.id === currentRoomSessionId) || docSessions[0];
                   return (
                     <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
-                      {/* Existing Shifts for this doctor on selectedDate */}
-                      {docSessions.length > 1 && docSessions.map((s) => {
-                        const isCurrentShift = s.id === currentRoomSessionId;
-                        const isEvening = isEveningSession(s);
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedSessionId(s.id);
-                              selectedSessionIdRef.current = s.id;
-                              const shiftType = isEvening ? 'EVENING' : 'MORNING';
-                              setActiveShift(shiftType);
-                              activeShiftRef.current = shiftType;
-                              loadDoctorRoomBoard(selectedDoctorId, selectedDate, s.id, false);
-                            }}
-                            className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 border transition cursor-pointer ${
-                              isCurrentShift
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-600/20'
-                                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                            }`}
-                          >
-                            {isEvening ? <Sunset className="w-3.5 h-3.5" /> : <Sunrise className="w-3.5 h-3.5" />}
-                            <span>{s.sessionName}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
-                              isCurrentShift
-                                ? 'bg-white/20 text-white'
-                                : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              #{s.nextTokenSequence - 1 || 0}
-                            </span>
-                          </button>
-                        );
-                      })}
-
+                      {/* Segmented Shifts Switcher matching Tab 1 */}
+                      {docSessions.length > 0 && (
+                        <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200 font-bold">
+                          {docSessions.map((s) => {
+                            const isCurrentShift = s.id === currentRoomSessionId;
+                            const isEvening = isEveningSession(s);
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSessionId(s.id);
+                                  selectedSessionIdRef.current = s.id;
+                                  const shiftType = isEvening ? 'EVENING' : 'MORNING';
+                                  setActiveShift(shiftType);
+                                  activeShiftRef.current = shiftType;
+                                  loadDoctorRoomBoard(selectedDoctorId, selectedDate, s.id, false);
+                                }}
+                                className={`px-2.5 sm:px-3 py-1 rounded-lg transition flex items-center space-x-1.5 cursor-pointer ${
+                                  isCurrentShift
+                                    ? isEvening
+                                      ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                                      : 'bg-emerald-600 text-white shadow-xs font-extrabold'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                {isEvening ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                                <span>{isEvening ? 'Evening OPD' : 'Morning OPD'}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
+                                  isCurrentShift
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-200 text-slate-700'
+                                }`}>
+                                  #{s.nextTokenSequence - 1 || 0}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Active / Inactive Status Badge & Toggle */}
                       {activeSession && (
                         <div className="flex items-center space-x-2 pl-2 border-l border-slate-200">
                           {activeSession.status === 'OPEN' ? (
-                            <span className="inline-flex items-center space-x-1 font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl">
+                            <span className="inline-flex items-center space-x-1.5 font-bold text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl">
                               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                               <span>Active</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center space-x-1 font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-xl">
+                            <span className="inline-flex items-center space-x-1.5 font-bold text-xs text-amber-800 bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-xl">
                               <PauseCircle className="w-3.5 h-3.5 text-amber-600" />
                               <span>Inactive</span>
                             </span>
@@ -3279,9 +3273,6 @@ export const HospitalDashboard: React.FC<HospitalDashboardProps> = ({ onLogout, 
                 Hospital Access & Patient Entry
               </span>
               <h2 className="text-2xl font-black text-slate-900">Hospital Patient QR Code & Kiosk Portal</h2>
-              <p className="text-xs text-slate-500">
-                Patients scan this unique QR code with their mobile phone camera to open your hospital's private OPD token desk. They never see any other hospital.
-              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center pt-4">
