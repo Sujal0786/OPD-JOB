@@ -26,23 +26,17 @@ public class QueueEventBroadcaster {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
         sessionEmitters.computeIfAbsent(sessionId, k -> Collections.synchronizedList(new ArrayList<>())).add(emitter);
 
+        // Fix A: Register all three lifecycle callbacks immediately without calling complete()
         emitter.onCompletion(() -> removeSessionEmitter(sessionId, emitter));
-        emitter.onTimeout(() -> {
-            removeSessionEmitter(sessionId, emitter);
-            try {
-                emitter.complete();
-            } catch (Exception ignored) {}
-        });
-        emitter.onError(e -> {
-            removeSessionEmitter(sessionId, emitter);
-            try {
-                emitter.complete();
-            } catch (Exception ignored) {}
-        });
+        emitter.onTimeout(() -> removeSessionEmitter(sessionId, emitter));
+        emitter.onError(error -> removeSessionEmitter(sessionId, emitter));
 
         try {
             emitter.send(SseEmitter.event().name("INIT").data("Connected to session queue " + sessionId));
-        } catch (IOException ignored) {}
+        } catch (IOException | IllegalStateException ex) {
+            log.debug("SSE client disconnected immediately during INIT for session: {}", sessionId);
+            removeSessionEmitter(sessionId, emitter);
+        }
 
         return emitter;
     }
@@ -51,23 +45,17 @@ public class QueueEventBroadcaster {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
         patientEmitters.computeIfAbsent(bookingReference, k -> Collections.synchronizedList(new ArrayList<>())).add(emitter);
 
+        // Fix A: Register all three lifecycle callbacks immediately without calling complete()
         emitter.onCompletion(() -> removePatientEmitter(bookingReference, emitter));
-        emitter.onTimeout(() -> {
-            removePatientEmitter(bookingReference, emitter);
-            try {
-                emitter.complete();
-            } catch (Exception ignored) {}
-        });
-        emitter.onError(e -> {
-            removePatientEmitter(bookingReference, emitter);
-            try {
-                emitter.complete();
-            } catch (Exception ignored) {}
-        });
+        emitter.onTimeout(() -> removePatientEmitter(bookingReference, emitter));
+        emitter.onError(error -> removePatientEmitter(bookingReference, emitter));
 
         try {
             emitter.send(SseEmitter.event().name("INIT").data("Connected to token status " + bookingReference));
-        } catch (IOException ignored) {}
+        } catch (IOException | IllegalStateException ex) {
+            log.debug("SSE client disconnected immediately during INIT for bookingRef: {}", bookingReference);
+            removePatientEmitter(bookingReference, emitter);
+        }
 
         return emitter;
     }
@@ -81,7 +69,11 @@ public class QueueEventBroadcaster {
                     SseEmitter emitter = it.next();
                     try {
                         emitter.send(SseEmitter.event().name("QUEUE_UPDATED").data(payload));
+                    } catch (IOException | IllegalStateException ex) {
+                        log.debug("SSE client disconnected during session update: {}", sessionId);
+                        it.remove();
                     } catch (Exception e) {
+                        log.warn("Unexpected error sending session update: {}", e.getMessage());
                         it.remove();
                     }
                 }
@@ -101,7 +93,11 @@ public class QueueEventBroadcaster {
                     SseEmitter emitter = it.next();
                     try {
                         emitter.send(SseEmitter.event().name("TOKEN_UPDATED").data(payload));
+                    } catch (IOException | IllegalStateException ex) {
+                        log.debug("SSE client disconnected during patient update: {}", bookingReference);
+                        it.remove();
                     } catch (Exception e) {
+                        log.warn("Unexpected error sending patient update: {}", e.getMessage());
                         it.remove();
                     }
                 }
@@ -112,22 +108,29 @@ public class QueueEventBroadcaster {
         }
     }
 
+    // Fix B: Protect heartbeat delivery & handle broken pipes
     @Scheduled(fixedRate = 25000)
     public void sendHeartbeat() {
-        sendHeartbeatToMap(sessionEmitters);
-        sendHeartbeatToMap(patientEmitters);
+        sendHeartbeatToMap(sessionEmitters, "session");
+        sendHeartbeatToMap(patientEmitters, "patient");
     }
 
-    private <K> void sendHeartbeatToMap(Map<K, List<SseEmitter>> map) {
+    private <K> void sendHeartbeatToMap(Map<K, List<SseEmitter>> map, String type) {
         for (Map.Entry<K, List<SseEmitter>> entry : map.entrySet()) {
+            K key = entry.getKey();
             List<SseEmitter> list = entry.getValue();
             synchronized (list) {
                 Iterator<SseEmitter> it = list.iterator();
                 while (it.hasNext()) {
                     SseEmitter emitter = it.next();
                     try {
-                        emitter.send(SseEmitter.event().comment("ping"));
-                    } catch (Exception e) {
+                        emitter.send(
+                            SseEmitter.event()
+                                .name("heartbeat")
+                                .data("ping")
+                        );
+                    } catch (IOException | IllegalStateException ex) {
+                        log.debug("SSE client disconnected during heartbeat ({}={}): {}", type, key, ex.getMessage());
                         it.remove();
                     }
                 }
@@ -141,17 +144,34 @@ public class QueueEventBroadcaster {
         });
     }
 
+    // Fix A: Thread-safe, idempotent removal
     private void removeSessionEmitter(UUID sessionId, SseEmitter emitter) {
         sessionEmitters.computeIfPresent(sessionId, (key, list) -> {
-            list.remove(emitter);
-            return list.isEmpty() ? null : list;
+            boolean removed;
+            synchronized (list) {
+                removed = list.remove(emitter);
+            }
+            if (removed) {
+                log.debug("SSE session emitter removed for session: {}", sessionId);
+            }
+            synchronized (list) {
+                return list.isEmpty() ? null : list;
+            }
         });
     }
 
     private void removePatientEmitter(String bookingRef, SseEmitter emitter) {
         patientEmitters.computeIfPresent(bookingRef, (key, list) -> {
-            list.remove(emitter);
-            return list.isEmpty() ? null : list;
+            boolean removed;
+            synchronized (list) {
+                removed = list.remove(emitter);
+            }
+            if (removed) {
+                log.debug("SSE patient emitter removed for bookingRef: {}", bookingRef);
+            }
+            synchronized (list) {
+                return list.isEmpty() ? null : list;
+            }
         });
     }
 }
